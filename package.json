@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.2\n\n#### Fixes:\n- **Dotenv Dependency Fix:** Moved `dotenv` back to runtime dependencies. This resolves the \"Cannot find module 'dotenv'\" startup crash in the packaged application main process.\n\n#### What's New:\n- **Renamed App:** Fully rebranded application to **ChronoFlow**.\n- **Installer Size Optimization:** Reduced the packaged application bundle (`app.asar`) by **66%** (from 33.6 MB down to 11.2 MB).\n- **AFK / Inactivity Detection:** Added root-level idle tracking dialogs to keep, discard, or assign idle times with autocomplete search.\n- **Auto-Updater Integration:** Added updater lifecycle events and restart action prompts.\n- **Jira Connection Cleanup:** Removed unused client credentials fields and updated callback scheme to `chronoflow://`."
+      "releaseNotes": "### ChronoFlow v0.1.3\n\n#### Fixes:\n- **Jira OAuth Credentials Fix:** Bundled the default client secret fallback for production. This resolves the 'Authentication failed' error encountered after authorization.\n- **Worklog Edit/Save Time Formatting:** Normalized manual and split time entries to HH:MM:SS format to guarantee successful updates/syncing with Jira API without 400 errors.\n\n#### What's New:\n- **Renamed App:** Fully rebranded application to **ChronoFlow**.\n- **Installer Size Optimization:** Reduced the packaged application bundle (`app.asar`) by **66%** (from 33.6 MB down to 11.2 MB).\n- **AFK / Inactivity Detection:** Added root-level idle tracking dialogs to keep, discard, or assign idle times with autocomplete search.\n- **Auto-Updater Integration:** Added updater lifecycle events and restart action prompts.\n- **Jira Connection Cleanup:** Removed unused client credentials fields and updated callback scheme to `chronoflow://`."
     }
   }
 }

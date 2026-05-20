@@ -2,6 +2,21 @@ import { getDatabase } from "./database";
 import type { Project, Issue, TimeEntry, JiraConnection } from "../src/types";
 import { randomUUID } from "crypto";
 
+function normalizeTime(time: string | null | undefined): string | null {
+  if (!time) return null;
+  const trimmed = time.trim();
+  if (!trimmed) return null;
+
+  const parts = trimmed.split(":");
+  if (parts.length === 2) {
+    return `${trimmed}:00`;
+  }
+  if (parts.length === 1) {
+    return `${trimmed}:00:00`;
+  }
+  return trimmed;
+}
+
 // ---- Projects ----
 
 export async function getAllProjects(): Promise<Project[]> {
@@ -306,8 +321,8 @@ export async function createTimeEntry(entry: TimeEntry): Promise<void> {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     entry.id,
     entry.issueId,
-    entry.startTime,
-    entry.endTime || null,
+    normalizeTime(entry.startTime) || "00:00:00",
+    normalizeTime(entry.endTime),
     entry.date,
     entry.note || null,
     entry.jiraWorklogId || null,
@@ -326,12 +341,12 @@ export async function updateTimeEntry(
 
   if (updates.startTime !== undefined) {
     fields.push("start_time = ?");
-    values.push(updates.startTime);
+    values.push(normalizeTime(updates.startTime) || "00:00:00");
     shouldSetDirty = true;
   }
   if (updates.endTime !== undefined) {
     fields.push("end_time = ?");
-    values.push(updates.endTime);
+    values.push(normalizeTime(updates.endTime));
     shouldSetDirty = true;
   }
   if (updates.date !== undefined) {
@@ -402,9 +417,11 @@ export async function splitTimeEntry(
   )) as any;
   if (!original) throw new Error("Time entry not found");
 
+  const normalizedSplit = normalizeTime(splitTime) || splitTime;
+
   if (
-    splitTime <= original.start_time ||
-    (original.end_time && splitTime >= original.end_time)
+    normalizedSplit <= original.start_time ||
+    (original.end_time && normalizedSplit >= original.end_time)
   ) {
     throw new Error("Invalid split time");
   }
@@ -413,7 +430,7 @@ export async function splitTimeEntry(
 
   await db.run(
     "UPDATE time_entries SET end_time = ? WHERE id = ?",
-    splitTime,
+    normalizedSplit,
     originalEntryId,
   );
 
@@ -422,7 +439,7 @@ export async function splitTimeEntry(
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     newEntryId,
     newIssueId || original.issue_id,
-    splitTime,
+    normalizedSplit,
     original.end_time,
     original.date,
     original.note,

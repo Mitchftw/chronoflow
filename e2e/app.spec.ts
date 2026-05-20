@@ -275,3 +275,71 @@ test("auto-update notification displays when update IPC event fires", async () =
   });
   expect(hasTimerAPI).toBeTruthy();
 });
+
+// ─── Test 9: Create, Edit, and Save a manual time entry ─────────────────────
+
+test("create, edit, and save a time entry", async () => {
+  // Navigate to Dashboard
+  await window.locator("app-side-nav").locator("text=Dashboard").click();
+  await window.waitForTimeout(500);
+
+  // Click "Add Entry" button (either Add Entry or Add Manual Entry)
+  const addEntryBtn = window.locator("button:has-text('Add Entry'), button:has-text('Add Manual Entry')").first();
+  await expect(addEntryBtn).toBeVisible();
+  await addEntryBtn.click();
+  await window.waitForTimeout(300);
+
+  // Focus and type search issue to create a new task
+  const searchInput = window.locator("app-time-entry-edit-dialog app-search-bar input");
+  await expect(searchInput).toBeVisible();
+  await searchInput.fill("E2E Manual Task");
+  await window.waitForTimeout(500);
+
+  // Click the "Create & start local task" dropdown button
+  const createBtn = window.locator("app-search-bar button", { hasText: /create & start local task/i }).first();
+  await expect(createBtn).toBeVisible();
+  await createBtn.click();
+  await window.waitForTimeout(300);
+
+  // Fill in description/note
+  const noteInput = window.locator("textarea#edit-entry-note");
+  await noteInput.fill("Initial E2E Note");
+
+  // Save the new entry
+  const confirmBtn = window.locator("app-dialog button:has-text('Create Entry')").first();
+  await expect(confirmBtn).toBeVisible();
+  await confirmBtn.click();
+  await window.waitForTimeout(1000);
+
+  // Verify the row appears in the table
+  const tableRow = window.locator("app-time-entry-list table tbody tr", { hasText: "E2E Manual Task" }).first();
+  await expect(tableRow).toBeVisible();
+  await expect(tableRow.locator("td", { hasText: "Initial E2E Note" })).toBeVisible();
+
+  // Click "Edit entry" button
+  const editBtn = tableRow.locator("button[aria-label='Edit entry']").first();
+  await expect(editBtn).toBeVisible();
+  await editBtn.click();
+  await window.waitForTimeout(300);
+
+  // Change the note
+  const noteInputUpdate = window.locator("textarea#edit-entry-note");
+  await expect(noteInputUpdate).toBeVisible();
+  await noteInputUpdate.fill("Updated E2E Note");
+
+  // Modify start and end times
+  const startTimeInput = window.locator("input#edit-start-time");
+  await startTimeInput.fill("09:15");
+  const endTimeInput = window.locator("input#edit-end-time");
+  await endTimeInput.fill("10:30");
+
+  // Save Changes
+  const saveBtn = window.locator("app-dialog button:has-text('Save Changes')").first();
+  await expect(saveBtn).toBeVisible();
+  await saveBtn.click();
+  await window.waitForTimeout(1000);
+
+  // Verify that the table updates with the new note and correct duration (09:15 to 10:30 is 1h 15m)
+  await expect(tableRow.locator("td", { hasText: "Updated E2E Note" })).toBeVisible();
+  await expect(tableRow.locator("td", { hasText: "1h 15m" })).toBeVisible();
+});

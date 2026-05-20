@@ -579,7 +579,7 @@ export function registerJiraHandlers() {
       const { baseUrl, headers } = getJiraRequestConfig(params);
       const { issueKey, worklogId, timeSpentSeconds, comment, started } = params;
 
-      const adfComment = comment ? {
+      const adfComment = {
         type: "doc",
         version: 1,
         content: [
@@ -588,18 +588,18 @@ export function registerJiraHandlers() {
             content: [
               {
                 type: "text",
-                text: comment,
+                text: comment || "",
               },
             ],
           },
         ],
-      } : undefined;
+      };
 
       const response = await axios.put(
         `${baseUrl}/rest/api/3/issue/${issueKey}/worklog/${worklogId}`,
         {
           timeSpentSeconds,
-          ...(adfComment ? { comment: adfComment } : {}),
+          comment: adfComment,
           started,
         },
         { headers },
