@@ -92,7 +92,9 @@
       "provider": "github",
       "owner": "Mitchftw",
       "repo": "chronoflow",
-      "releaseType": "draft",
+      "releaseType": "draft"
+    },
+    "releaseInfo": {
       "releaseNotes": "### ChronoFlow v0.1.1\n\n#### What's New:\n- **Renamed App:** Fully rebranded application to **ChronoFlow**.\n- **Installer Size Optimization:** Reduced the packaged application bundle (`app.asar`) by **66%** (from 33.6 MB down to 11.2 MB).\n- **AFK / Inactivity Detection:** Added root-level idle tracking dialogs to keep, discard, or assign idle times with autocomplete search.\n- **Auto-Updater Integration:** Added updater lifecycle events and restart action prompts.\n- **Jira Connection Cleanup:** Removed unused client credentials fields and updated callback scheme to `chronoflow://`."
     }
   }
