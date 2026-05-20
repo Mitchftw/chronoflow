@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -37,6 +37,7 @@
     "rxjs": "^7.8.0",
     "tslib": "^2.6.0",
     "zone.js": "^0.15.0",
+    "date-fns": "^4.1.0",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/postcss": "^4.3.0",
     "@tailwindcss/vite": "^4.1.18",
@@ -54,7 +55,6 @@
   },
   "dependencies": {
     "axios": "^1.6.2",
-    "date-fns": "^4.1.0",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
     "sqlite": "^4.2.1",
@@ -92,7 +92,8 @@
       "provider": "github",
       "owner": "Mitchftw",
       "repo": "chronoflow",
-      "releaseType": "draft"
+      "releaseType": "draft",
+      "releaseNotes": "### ChronoFlow v0.1.1\n\n#### What's New:\n- **Renamed App:** Fully rebranded application to **ChronoFlow**.\n- **Installer Size Optimization:** Reduced the packaged application bundle (`app.asar`) by **66%** (from 33.6 MB down to 11.2 MB).\n- **AFK / Inactivity Detection:** Added root-level idle tracking dialogs to keep, discard, or assign idle times with autocomplete search.\n- **Auto-Updater Integration:** Added updater lifecycle events and restart action prompts.\n- **Jira Connection Cleanup:** Removed unused client credentials fields and updated callback scheme to `chronoflow://`."
     }
   }
 }
