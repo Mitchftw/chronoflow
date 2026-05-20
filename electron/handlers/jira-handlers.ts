@@ -97,7 +97,7 @@ function extractCommentText(comment: any): string | undefined {
 }
 
 const CLIENT_ID = process.env['JIRA_CLIENT_ID'] || "GRZHzt7wHTU4U8Za5U1ZR54TzyKhtYcU";
-const CLIENT_SECRET = process.env['JIRA_CLIENT_SECRET'];
+const CLIENT_SECRET = process.env['JIRA_CLIENT_SECRET'] || "ATOAizYTklZ2WKdhRW86WfQicnLLDrYeQKVucZz_muhmnYg2XV_l89C9jtIacGaMRu2903BC1E17";
 
 /**
  * Helper to get the correct base URL and headers based on auth type
