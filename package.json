@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -45,7 +45,6 @@
     "autoprefixer": "^10.4.23",
     "concurrently": "^8.2.2",
     "cross-env": "^10.1.0",
-    "dotenv": "^17.2.3",
     "electron": "^35.0.0",
     "electron-builder": "^26.0.12",
     "postcss": "^8.5.6",
@@ -55,6 +54,7 @@
   },
   "dependencies": {
     "axios": "^1.6.2",
+    "dotenv": "^17.2.3",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
     "sqlite": "^4.2.1",
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.1\n\n#### What's New:\n- **Renamed App:** Fully rebranded application to **ChronoFlow**.\n- **Installer Size Optimization:** Reduced the packaged application bundle (`app.asar`) by **66%** (from 33.6 MB down to 11.2 MB).\n- **AFK / Inactivity Detection:** Added root-level idle tracking dialogs to keep, discard, or assign idle times with autocomplete search.\n- **Auto-Updater Integration:** Added updater lifecycle events and restart action prompts.\n- **Jira Connection Cleanup:** Removed unused client credentials fields and updated callback scheme to `chronoflow://`."
+      "releaseNotes": "### ChronoFlow v0.1.2\n\n#### Fixes:\n- **Dotenv Dependency Fix:** Moved `dotenv` back to runtime dependencies. This resolves the \"Cannot find module 'dotenv'\" startup crash in the packaged application main process.\n\n#### What's New:\n- **Renamed App:** Fully rebranded application to **ChronoFlow**.\n- **Installer Size Optimization:** Reduced the packaged application bundle (`app.asar`) by **66%** (from 33.6 MB down to 11.2 MB).\n- **AFK / Inactivity Detection:** Added root-level idle tracking dialogs to keep, discard, or assign idle times with autocomplete search.\n- **Auto-Updater Integration:** Added updater lifecycle events and restart action prompts.\n- **Jira Connection Cleanup:** Removed unused client credentials fields and updated callback scheme to `chronoflow://`."
     }
   }
 }
