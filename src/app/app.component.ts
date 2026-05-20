@@ -6,6 +6,7 @@ import { SettingsService } from './services/settings.service';
 import { IdleDetectionService } from './services/idle-detection.service';
 import { TimerService } from './services/timer.service';
 import { DatabaseService } from './services/database.service';
+import { UpdateService } from './services/update.service';
 import { IdlePromptComponent } from './components/common/idle-prompt.component';
 import { DialogComponent } from './components/common/dialog.component';
 import { SearchBarComponent, SearchResult } from './components/common/search-bar.component';
@@ -90,6 +91,7 @@ export class AppComponent {
   private idleDetection = inject(IdleDetectionService);
   private timerService = inject(TimerService);
   private db = inject(DatabaseService);
+  private updateService = inject(UpdateService);
 
   sideNavCollapsed = signal(false);
   isDark = signal(false);
