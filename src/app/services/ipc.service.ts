@@ -157,7 +157,13 @@ export class IpcService {
   // ── Jira ──
 
   async jiraSearch(query: string): Promise<JiraIssue[]> {
-    const res: any = await this.jira?.search({ query });
+    const defaultConn = await this.jiraGetDefaultConnection();
+    if (!defaultConn) return [];
+    const res: any = await this.jira?.search({
+      ...defaultConn,
+      connectionId: defaultConn.id,
+      query,
+    });
     return res?.success ? (res.issues ?? []) : [];
   }
 

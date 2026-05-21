@@ -135,6 +135,8 @@ export class JiraService {
     for (const conn of conns) {
       try {
         const res = await api.search({
+          connectionId: conn.id,
+          id: conn.id,
           authType: conn.authType ?? 'api-key',
           domain: conn.domain,
           email: conn.email,
@@ -191,6 +193,8 @@ export class JiraService {
 
     try {
       const res = await api.addWorklog({
+        connectionId: connection.id,
+        id: connection.id,
         authType: connection.authType ?? 'api-key',
         domain: connection.domain,
         email: connection.email,
