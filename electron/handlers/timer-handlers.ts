@@ -11,6 +11,7 @@ let timerState: {
   issueId: string | null;
   entryId: string | null;
   startTime: number | null;
+  initialStartTime: number | null;
   isRunning: boolean;
   isPaused: boolean;
   pausedElapsed: number; // ms accumulated before pause
@@ -19,6 +20,7 @@ let timerState: {
   issueId: null,
   entryId: null,
   startTime: null,
+  initialStartTime: null,
   isRunning: false,
   isPaused: false,
   pausedElapsed: 0,
@@ -115,6 +117,7 @@ export function registerTimerHandlers(
         issueId,
         entryId,
         startTime: now,
+        initialStartTime: now,
         isRunning: true,
         isPaused: false,
         pausedElapsed: 0,
@@ -152,12 +155,38 @@ export function registerTimerHandlers(
       const entryId = timerState.entryId;
       const issueId = timerState.issueId;
       const endTimestamp = stopTime || Date.now();
-      const elapsedSeconds = getTimerStateElapsed(endTimestamp);
+      let elapsedSeconds = getTimerStateElapsed(endTimestamp);
+
+      // Check settings for 15-min rounding
+      const appSettings = await dbService.getSetting("app");
+      const roundTo15Min = appSettings?.roundTo15Min === true;
+
+      let roundedStart = timerState.initialStartTime || timerState.startTime || Date.now();
+      let roundedEnd = endTimestamp;
+
+      if (roundTo15Min) {
+        const fifteenMinInMs = 15 * 60 * 1000;
+        roundedStart = Math.round(roundedStart / fifteenMinInMs) * fifteenMinInMs;
+        roundedEnd = Math.round(endTimestamp / fifteenMinInMs) * fifteenMinInMs;
+
+        const actualPausedMs = Math.max(0, (endTimestamp - (timerState.initialStartTime || timerState.startTime || endTimestamp)) - (elapsedSeconds * 1000));
+        const roundedDurationMs = roundedEnd - roundedStart - actualPausedMs;
+        let roundedElapsedSeconds = Math.round(roundedDurationMs / fifteenMinInMs) * (15 * 60);
+
+        if (roundedElapsedSeconds <= 0 && elapsedSeconds > 0) {
+          roundedElapsedSeconds = 15 * 60; // minimum 15 mins
+        }
+        elapsedSeconds = roundedElapsedSeconds;
+
+        roundedEnd = roundedStart + (elapsedSeconds * 1000) + actualPausedMs;
+      }
 
       if (entryId) {
         // Close the time entry and set note if provided
         await dbService.updateTimeEntry(entryId, {
-          endTime: new Date(endTimestamp).toISOString().slice(11, 19),
+          startTime: roundTo15Min ? new Date(roundedStart).toISOString().slice(11, 19) : undefined,
+          endTime: new Date(roundedEnd).toISOString().slice(11, 19),
+          date: roundTo15Min ? new Date(roundedStart).toISOString().slice(0, 10) : undefined,
           ...(note !== undefined ? { note } : {}),
         });
       }
@@ -179,6 +208,7 @@ export function registerTimerHandlers(
         issueId: null,
         entryId: null,
         startTime: null,
+        initialStartTime: null,
         isRunning: false,
         isPaused: false,
         pausedElapsed: 0,

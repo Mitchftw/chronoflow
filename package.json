@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.4\n\n#### Fixes & Refactoring:\n- **Timer Stop Flow & Race Condition Fix:** Re-routed active timer-stop flow to accept notes directly inside `ipc.stopTimer(note, stopTime)` to prevent race conditions during dashboard state updates.\n- **E2E Test Settings & Database Isolation:** Configured an isolated, temporary `userData` path for E2E tests, preventing tests from mutating developer settings/data.\n- **TypeScript compilation fixes:** Resolved compilation error with `timer.stop` IPC interface parameter mismatch.\n\n#### What's New:\n- **Custom Transparent App Icon:** Replaced default Electron icon with a custom transparent branding icon for ChronoFlow on Windows platforms."
+      "releaseNotes": "### ChronoFlow v0.1.5\n\n#### Fixes & Refactoring:\n- **Main Menu Icons Fix:** Inlined the main menu sidebar SVGs to prevent Angular's HTML sanitizer from stripping them.\n- **Timer Stop Flow & Race Condition Fix:** Re-routed active timer-stop flow to accept notes directly inside `ipc.stopTimer(note, stopTime)` to prevent race conditions during dashboard state updates.\n- **E2E Test Settings & Database Isolation:** Configured an isolated, temporary `userData` path for E2E tests, preventing tests from mutating developer settings/data.\n- **TypeScript compilation fixes:** Resolved compilation error with `timer.stop` IPC interface parameter mismatch.\n\n#### What's New:\n- **Timer 15-Minute Snapping:** Snaps active timer start and stop times to the closest 15-minute interval (in the SQLite database and worklog duration) when 15-minute rounding is enabled.\n- **Custom Transparent App Icon:** Replaced default Electron icon with a custom transparent branding icon for ChronoFlow on Windows platforms."
     }
   }
 }

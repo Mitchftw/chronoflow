@@ -123,30 +123,6 @@ export class TimerService {
     this._loading.set(true);
     try {
       const res = await this.ipc.stopTimer(note, stopTime);
-      if (res.success && res.data) {
-        const { elapsed } = res.data as { elapsed: number };
-        let finalElapsed = elapsed;
-
-        // Apply 15-minute rounding if enabled
-        if (this.settings.settings().roundTo15Min) {
-          const fifteenMinInSeconds = 15 * 60;
-          finalElapsed = Math.ceil(elapsed / fifteenMinInSeconds) * fifteenMinInSeconds;
-          
-          if (finalElapsed !== elapsed) {
-            // Update the entry with rounded time in DB
-            // We need to adjust the issue timeSpent as well.
-            // The difference is (finalElapsed - elapsed)
-            const diff = finalElapsed - elapsed;
-            const issue = this._activeIssue();
-            if (issue) {
-              await this.ipc.updateIssue(issue.id, {
-                timeSpent: (issue.timeSpent || 0) + diff
-              });
-            }
-          }
-        }
-      }
-
       this.stopTick();
       this._timerState.set(null);
       this._activeIssue.set(null);
