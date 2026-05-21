@@ -25,6 +25,7 @@ test.beforeAll(async () => {
     env: {
       ...process.env,
       NODE_ENV: "production",
+      IS_TEST: "true",
     },
   });
 
@@ -342,4 +343,172 @@ test("create, edit, and save a time entry", async () => {
   // Verify that the table updates with the new note and correct duration (09:15 to 10:30 is 1h 15m)
   await expect(tableRow.locator("td", { hasText: "Updated E2E Note" })).toBeVisible();
   await expect(tableRow.locator("td", { hasText: "1h 15m" })).toBeVisible();
+});
+
+// ─── Test 10: Stop timer from notchbar creates worklog entry ────────────────
+
+test("stop timer from notchbar creates a worklog entry on the dashboard", async () => {
+  // Navigate to Settings first to ensure Notch timer mode is enabled
+  await window.locator("app-side-nav").locator("text=Settings").click();
+  await window.waitForTimeout(500);
+  
+  const notchBtn = window.locator("button:has-text('Notch')").first();
+  await expect(notchBtn).toBeVisible();
+  await notchBtn.click();
+  await window.waitForTimeout(500);
+
+  // Navigate to Dashboard
+  await window.locator("app-side-nav").locator("text=Dashboard").click();
+  await window.waitForTimeout(500);
+
+  // Verify Dashboard heading
+  await expect(window.locator("h1:has-text('Dashboard')")).toBeVisible();
+
+  // Find the search bar inside the active-timer-card and type a task name
+  const searchInput = window.locator("app-active-timer-card app-search-bar input").first();
+  await expect(searchInput).toBeVisible();
+  await searchInput.fill("E2E Notchbar Task");
+  await window.waitForTimeout(500);
+
+  // Click "Create & start local task" to start the timer
+  const createBtn = window.locator("app-search-bar button", { hasText: /create & start local task/i }).first();
+  if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await createBtn.click();
+    await window.waitForTimeout(1500);
+  }
+
+  // Verify the timer is running (Stop button appears in the active-timer-card)
+  const timerStopBtn = window.locator("app-active-timer-card button", { hasText: "Stop" }).first();
+  await expect(timerStopBtn).toBeVisible({ timeout: 5000 });
+
+  // Click minimize in the title bar to create the timer overlay window
+  const minimizeBtn = window.locator("app-title-bar button[aria-label='Minimize']").first();
+  await expect(minimizeBtn).toBeVisible();
+
+  // Set up promise to wait for the window to be created
+  const timerPagePromise = electronApp.waitForEvent("window");
+  await minimizeBtn.click();
+  
+  // Wait for the window page to be fully created
+  const timerPage = await timerPagePromise;
+  await timerPage.waitForLoadState("load");
+
+  // Ensure we have the timer window
+  if (timerPage) {
+    // Wait for the notch timer component to render
+    await timerPage.waitForSelector("app-notch-timer", { timeout: 10000 }).catch(() => {});
+    await timerPage.waitForTimeout(1000);
+
+    // Click the Stop button in the notch timer
+    const notchStopBtn = timerPage.locator("app-notch-timer button[aria-label='Stop timer']").first();
+    if (await notchStopBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await notchStopBtn.click();
+      await timerPage.waitForTimeout(500);
+    }
+
+    // The stop expands the notch with a note textarea and "Save & Stop" button
+    const noteTextarea = timerPage.locator("app-notch-timer textarea").first();
+    if (await noteTextarea.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await noteTextarea.fill("Stopped via notchbar timer window");
+
+      // Click Save & Stop to finalize
+      const saveStopBtn = timerPage.locator("app-notch-timer button", { hasText: "Save & Stop" }).first();
+      if (await saveStopBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await saveStopBtn.click();
+        await timerPage.waitForTimeout(1000);
+      }
+    }
+  }
+
+  // Switch back to main window, navigate to Dashboard to see the entry
+  await window.locator("app-side-nav").locator("text=Dashboard").click();
+  await window.waitForTimeout(1000);
+
+  // Verify the worklog entry appears in the time-entry-list table
+  const entryRow = window.locator("app-time-entry-list table tbody tr", {
+    hasText: "E2E Notchbar Task",
+  }).first();
+
+  await expect(entryRow).toBeVisible({ timeout: 5000 });
+  await expect(entryRow.locator("td", { hasText: "Stopped via notchbar timer window" })).toBeVisible();
+
+  // Restore setting back to 'Draggable'
+  await window.locator("app-side-nav").locator("text=Settings").click();
+  await window.waitForTimeout(500);
+  const draggableBtn = window.locator("button:has-text('Draggable')").first();
+  await expect(draggableBtn).toBeVisible();
+  await draggableBtn.click();
+  await window.waitForTimeout(500);
+});
+
+// ─── Test 11: Edit worklog dialog closes on save ────────────────────────────
+
+test("editing a worklog entry and saving correctly closes the dialog", async () => {
+  // Navigate to Dashboard
+  await window.locator("app-side-nav").locator("text=Dashboard").click();
+  await window.waitForTimeout(500);
+
+  // Click "Add Entry" button to open the time entry creation dialog
+  const addEntryBtn = window.locator(
+    "app-time-entry-list button:has-text('Add Entry'), app-time-entry-list button:has-text('Add Manual Entry')",
+  ).first();
+  await expect(addEntryBtn).toBeVisible();
+  await addEntryBtn.click();
+  await window.waitForTimeout(300);
+
+  // Focus and type in the search bar inside the dialog to create a new task
+  const searchInput = window.locator("app-time-entry-edit-dialog app-search-bar input").first();
+  await expect(searchInput).toBeVisible();
+  await searchInput.fill("E2E Dialog Close Task");
+  await window.waitForTimeout(500);
+
+  // Click the "Create & start local task" action
+  const createBtn = window.locator("app-search-bar button", { hasText: /create & start local task/i }).first();
+  if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await createBtn.click();
+    await window.waitForTimeout(300);
+  }
+
+  // Fill in a note
+  const noteInput = window.locator("textarea#edit-entry-note");
+  await expect(noteInput).toBeVisible();
+  await noteInput.fill("Entry for dialog close test");
+
+  // Fill in start time
+  const startTimeInput = window.locator("input#edit-start-time");
+  await startTimeInput.fill("14:00");
+
+  // Click "Create Entry" to save the new entry
+  const createEntryBtn = window.locator("app-dialog button:has-text('Create Entry')").first();
+  await expect(createEntryBtn).toBeVisible();
+  await createEntryBtn.click();
+  await window.waitForTimeout(1000);
+
+  // Verify the entry row appears in the table
+  const tableRow = window.locator("app-time-entry-list table tbody tr", {
+    hasText: "E2E Dialog Close Task",
+  }).first();
+  await expect(tableRow).toBeVisible();
+
+  // Click the "Edit entry" button on the row
+  const editBtn = tableRow.locator("button[aria-label='Edit entry']").first();
+  await expect(editBtn).toBeVisible();
+  await editBtn.click();
+  await window.waitForTimeout(500);
+
+  // Verify the dialog opened (the note textarea should be visible)
+  const editNoteInput = window.locator("textarea#edit-entry-note");
+  await expect(editNoteInput).toBeVisible();
+
+  // Update the note
+  await editNoteInput.fill("Updated note before closing dialog");
+
+  // Click "Save Changes" button inside the dialog
+  const saveChangesBtn = window.locator("app-dialog button:has-text('Save Changes')").first();
+  await expect(saveChangesBtn).toBeVisible();
+  await saveChangesBtn.click();
+  await window.waitForTimeout(1000);
+
+  // Verify the dialog is no longer visible — the textarea should be gone
+  await expect(window.locator("textarea#edit-entry-note")).not.toBeVisible();
 });

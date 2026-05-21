@@ -5,12 +5,18 @@ import * as path from "path";
 // Load environment variables from .env file
 dotenv.config();
 
+// Isolate userData for E2E tests
+if (process.env["IS_TEST"] === "true") {
+  const testUserDataPath = path.join(app.getPath("temp"), "chronoflow-test-userdata");
+  app.setPath("userData", testUserDataPath);
+}
+
 import { autoUpdater } from "electron-updater";
 import { initDatabase, closeDatabase } from "./database";
 import { logger } from "./utils/logger";
 import { registerJiraHandlers } from "./handlers/jira-handlers";
 import { registerStoreHandlers } from "./handlers/store-handlers";
-import { registerTimerHandlers } from "./handlers/timer-handlers";
+import { registerTimerHandlers, broadcastTimerState } from "./handlers/timer-handlers";
 import { registerWindowHandlers } from "./handlers/window-handlers";
 import { registerIdleHandlers } from "./handlers/idle-handlers";
 
@@ -148,6 +154,9 @@ function createWindow() {
     frame: false,
     transparent: false,
     backgroundColor: "#1a1a1a",
+    icon: process.platform === "win32"
+      ? path.join(__dirname, "../../build/icon.ico")
+      : path.join(__dirname, "../../build/icon.png"),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -226,6 +235,7 @@ function createWindow() {
 let mouseCheckInterval: any = null;
 
 function startMouseTracking() {
+  if (process.env["IS_TEST"] === "true") return;
   if (mouseCheckInterval) return;
   mouseCheckInterval = setInterval(() => {
     if (!timerWindow || timerWindow.isDestroyed() || !timerWindow.isVisible()) {
@@ -308,8 +318,12 @@ function createTimerWindow(mode: "draggable" | "notch") {
       displayY,
     );
     timerWindow.setAlwaysOnTop(true, "screen-saver");
-    timerWindow.setIgnoreMouseEvents(true, { forward: true });
-    startMouseTracking();
+    if (process.env["IS_TEST"] !== "true") {
+      timerWindow.setIgnoreMouseEvents(true, { forward: true });
+      startMouseTracking();
+    } else {
+      timerWindow.setIgnoreMouseEvents(false);
+    }
   } else {
     const { width: screenWidth, height: screenHeight, x: displayX, y: displayY } = activeDisplay.workArea;
     timerWindow.setPosition(
@@ -318,13 +332,17 @@ function createTimerWindow(mode: "draggable" | "notch") {
     );
   }
 
+  timerWindow.webContents.on("did-finish-load", () => {
+    broadcastTimerState(timerWindow, mainWindow);
+  });
+
   timerWindow.webContents.on(
     "did-fail-load",
     (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
       if (process.env['NODE_ENV'] === "development" && isMainFrame) {
         setTimeout(() => {
           if (timerWindow && !timerWindow.isDestroyed()) {
-            timerWindow.loadURL("http://localhost:4200/?windowType=timer#/timer-overlay");
+            timerWindow.loadURL(`http://localhost:4200/?windowType=timer&mode=${mode}#/timer-overlay`);
           }
         }, 1000);
       }
@@ -332,7 +350,7 @@ function createTimerWindow(mode: "draggable" | "notch") {
   );
 
   if (process.env['NODE_ENV'] === "development") {
-    timerWindow.loadURL("http://localhost:4200/?windowType=timer#/timer-overlay");
+    timerWindow.loadURL(`http://localhost:4200/?windowType=timer&mode=${mode}#/timer-overlay`);
     // Don't open dev tools for timer window in dev, keep it clean
   } else {
     const rendererPath = path.join(
@@ -341,7 +359,7 @@ function createTimerWindow(mode: "draggable" | "notch") {
     );
     timerWindow.loadFile(rendererPath, {
       hash: "/timer-overlay",
-      query: { windowType: "timer" },
+      query: { windowType: "timer", mode },
     }).catch((error) => {
       logger.error("Failed to load timer window:", error);
     });
@@ -395,7 +413,9 @@ function registerTimerWindowHandlers() {
   ipcMain.on("timer-window:set-ignore-mouse", (event, ignore) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win && !win.isDestroyed()) {
-      if (ignore) {
+      if (process.env["IS_TEST"] === "true") {
+        win.setIgnoreMouseEvents(false);
+      } else if (ignore) {
         win.setIgnoreMouseEvents(true, { forward: true });
       } else {
         win.setIgnoreMouseEvents(false);
@@ -442,7 +462,7 @@ app.whenReady().then(async () => {
   registerWindowHandlers(() => mainWindow);
   registerStoreHandlers();
   registerJiraHandlers();
-  registerTimerHandlers(() => timerWindow);
+  registerTimerHandlers(() => timerWindow, () => mainWindow);
   registerTimerWindowHandlers();
   registerIdleHandlers(() => mainWindow);
   registerUpdaterHandlers();
