@@ -41,23 +41,41 @@ export class TimerService {
 
   constructor() {
     this.restoreState();
+    this.ipc.onTimerWindowStateUpdate((state) => {
+      this.handleStateUpdate(state);
+    });
+  }
+
+  private async handleStateUpdate(state: TimerState): Promise<void> {
+    this._timerState.set(state);
+    if (state && state.isRunning) {
+      if (state.isPaused) {
+        this.stopTick();
+        this._elapsedMs.set(state.elapsed * 1000);
+      } else {
+        const startMs = state.startTime ?? Date.now();
+        this.startTick(Date.now() - startMs);
+      }
+      if (state.issueId) {
+        const active = this._activeIssue();
+        if (!active || active.id !== state.issueId) {
+          const issues = await this.ipc.getIssues();
+          const issue = issues.find((i) => i.id === state.issueId);
+          if (issue) this._activeIssue.set(issue);
+        }
+      }
+    } else {
+      this.stopTick();
+      this._activeIssue.set(null);
+      this._elapsedMs.set(state ? state.elapsed * 1000 : 0);
+    }
   }
 
   private async restoreState(): Promise<void> {
     try {
       const state = await this.ipc.getTimerState();
-      if (state && state.isRunning) {
-        this._timerState.set(state);
-        const startMs = state.startTime ?? Date.now();
-        this.startTick(Date.now() - startMs);
-        if (state.issueId) {
-          const issues = await this.ipc.getIssues();
-          const issue = issues.find((i) => i.id === state.issueId);
-          if (issue) this._activeIssue.set(issue);
-        }
-      } else if (state) {
-        this._timerState.set(state);
-        this._elapsedMs.set(state.elapsed * 1000);
+      if (state) {
+        await this.handleStateUpdate(state);
       }
     } catch (err) {
       console.error('Failed to restore timer state', err);
@@ -104,9 +122,9 @@ export class TimerService {
   async stop(note: string = '', stopTime?: number): Promise<boolean> {
     this._loading.set(true);
     try {
-      const res = await this.ipc.stopTimer(stopTime);
+      const res = await this.ipc.stopTimer(note, stopTime);
       if (res.success && res.data) {
-        const { elapsed, entryId } = res.data as { elapsed: number; entryId: string };
+        const { elapsed } = res.data as { elapsed: number };
         let finalElapsed = elapsed;
 
         // Apply 15-minute rounding if enabled
@@ -126,11 +144,6 @@ export class TimerService {
               });
             }
           }
-        }
-
-        // Update the entry with the note
-        if (entryId) {
-          await this.ipc.updateTimeEntry(entryId, { note });
         }
       }
 

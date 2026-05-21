@@ -134,8 +134,8 @@ export class TimeEntryEditDialogComponent {
     const end = this.endTime().trim();
     const hasIssue = this.entry() ? true : !!this.selectedIssueId();
     if (!start || !hasIssue) return false;
-    // If end time is set, it must be chronologically after start time
-    if (end && end <= start) return false;
+    // If end time is set, it must not be before start time (equal is valid for 0-duration Jira worklogs)
+    if (end && end < start) return false;
     return true;
   });
 
@@ -205,36 +205,40 @@ export class TimeEntryEditDialogComponent {
     const end = this.endTime().trim() || null;
     const currentNote = this.note().trim();
 
-    if (activeEntry) {
-      // Edit mode
-      const updated = await this.db.updateTimeEntry(activeEntry.id, {
-        startTime: start,
-        endTime: end,
-        note: currentNote,
-        isDirty: true,
-      });
-      if (updated) {
-        this.saved.emit(updated);
-      }
-    } else {
-      // Create mode
-      const issueId = this.selectedIssueId();
-      if (!issueId) return;
+    try {
+      if (activeEntry) {
+        // Edit mode
+        const updated = await this.db.updateTimeEntry(activeEntry.id, {
+          startTime: start,
+          endTime: end,
+          note: currentNote,
+          isDirty: true,
+        });
+        if (updated) {
+          this.saved.emit(updated);
+        }
+      } else {
+        // Create mode
+        const issueId = this.selectedIssueId();
+        if (!issueId) return;
 
-      const newEntry = await this.db.createTimeEntry({
-        issueId,
-        startTime: start,
-        endTime: end,
-        date: this.date() || new Date().toISOString().slice(0, 10),
-        note: currentNote,
-        isDirty: true,
-      });
-      if (newEntry) {
-        this.saved.emit(newEntry);
+        const newEntry = await this.db.createTimeEntry({
+          issueId,
+          startTime: start,
+          endTime: end,
+          date: this.date() || new Date().toISOString().slice(0, 10),
+          note: currentNote,
+          isDirty: true,
+        });
+        if (newEntry) {
+          this.saved.emit(newEntry);
+        }
       }
+    } catch (err) {
+      console.error('Failed to save time entry:', err);
+    } finally {
+      this.isOpen.set(false);
     }
-
-    this.isOpen.set(false);
   }
 
   onClose(): void {

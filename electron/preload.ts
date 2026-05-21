@@ -48,7 +48,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   timer: {
     start: (issueId: string) =>
       ipcRenderer.invoke("timer:start", issueId),
-    stop: () => ipcRenderer.invoke("timer:stop"),
+    stop: (note?: string, stopTime?: number) =>
+      ipcRenderer.invoke("timer:stop", note, stopTime),
     pause: () => ipcRenderer.invoke("timer:pause"),
     resume: () => ipcRenderer.invoke("timer:resume"),
     getState: () => ipcRenderer.invoke("timer:get-state"),

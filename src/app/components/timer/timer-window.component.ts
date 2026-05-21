@@ -23,7 +23,7 @@ import { type SearchResult } from '../common/search-bar.component';
         [formattedTime]="timer.formattedElapsed()"
         [localIssues]="db.issues()"
         (resultSelected)="handleResultSelected($event)"
-        (stop)="handleStop()"
+        (stop)="handleStop($event)"
         (expand)="handleExpand()"
         (close)="handleClose()"
       />
@@ -48,7 +48,13 @@ export class TimerWindowComponent implements OnInit, OnDestroy {
 
   private cleanup: (() => void) | null = null;
 
-  timerMode = computed(() => this.settings.settings().timerMode);
+  timerMode = computed(() => {
+    const urlMode = new URLSearchParams(window.location.search).get('mode') as 'draggable' | 'notch' | null;
+    if (urlMode === 'notch' || urlMode === 'draggable') {
+      return urlMode;
+    }
+    return this.settings.settings().timerMode;
+  });
 
   ngOnInit(): void {
     // Load local database issues and settings
@@ -91,8 +97,8 @@ export class TimerWindowComponent implements OnInit, OnDestroy {
     }
   }
 
-  async handleStop(): Promise<void> {
-    await this.timer.stop();
+  async handleStop(note?: string): Promise<void> {
+    await this.timer.stop(note || '');
   }
 
   handleExpand(): void {

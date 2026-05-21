@@ -252,8 +252,8 @@ export class IpcService {
     return (await this.timer?.start(issueId)) ?? { success: false, error: 'Timer API not available' };
   }
 
-  async stopTimer(stopTime?: number): Promise<IpcResponse> {
-    return (await this.timer?.stop(stopTime)) ?? { success: false, error: 'Timer API not available' };
+  async stopTimer(note?: string, stopTime?: number): Promise<IpcResponse> {
+    return (await this.timer?.stop(note, stopTime)) ?? { success: false, error: 'Timer API not available' };
   }
 
   async pauseTimer(): Promise<IpcResponse> {

@@ -155,6 +155,8 @@ import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
       [entry]="selectedTimeEntry()"
       [date]="formattedDate()"
       [issues]="db.issues()"
+      (saved)="onEntrySaved($event)"
+      (dismissed)="onEntryDismissed()"
     />
 
     <!-- Loading overlay -->
@@ -296,5 +298,13 @@ export class DashboardComponent {
   openCreateEntryDialog(): void {
     this.selectedTimeEntry.set(null);
     this.isTimeEntryDialogOpen.set(true);
+  }
+
+  onEntrySaved(_entry: TimeEntry): void {
+    this.db.reloadTimeEntries();
+  }
+
+  onEntryDismissed(): void {
+    this.db.reloadTimeEntries();
   }
 }

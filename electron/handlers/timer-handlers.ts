@@ -26,11 +26,16 @@ let timerState: {
 };
 
 /**
- * Notify the timer window (if open) of current state via webContents.send
+ * Notify all windows of current timer state via webContents.send
  */
-function broadcastTimerState(timerWindow: BrowserWindow | null) {
-  if (!timerWindow || timerWindow.isDestroyed()) return;
-  timerWindow.webContents.send("timer:state-update", getTimerState());
+export function broadcastTimerState(timerWindow: BrowserWindow | null, mainWindow: BrowserWindow | null) {
+  const state = getTimerState();
+  if (timerWindow && !timerWindow.isDestroyed()) {
+    timerWindow.webContents.send("timer:state-update", state);
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("timer:state-update", state);
+  }
 }
 
 function getTimerStateElapsed(atTime?: number): number {
@@ -65,10 +70,11 @@ function getTimerState() {
 
 /**
  * Register all timer-related IPC handlers.
- * Pass in a getter for the timer window so we can push state updates.
+ * Pass in getters for the timer and main windows so we can push state updates.
  */
 export function registerTimerHandlers(
   getTimerWindow: () => BrowserWindow | null,
+  getMainWindow: () => BrowserWindow | null,
 ) {
   // Start tracking time for an issue
   ipcMain.handle("timer:start", async (_, issueId: string) => {
@@ -86,7 +92,7 @@ export function registerTimerHandlers(
         timerState.pauseStart = null;
         // Adjust start time to account for pause duration
         // This keeps the elapsed calculation simple
-        broadcastTimerState(getTimerWindow());
+        broadcastTimerState(getTimerWindow(), getMainWindow());
         return { success: true, data: getTimerState() };
       }
 
@@ -124,7 +130,7 @@ export function registerTimerHandlers(
         });
       }
 
-      broadcastTimerState(getTimerWindow());
+      broadcastTimerState(getTimerWindow(), getMainWindow());
       logger.info(`Timer started for issue: ${issueId}`);
       return { success: true, data: getTimerState() };
     } catch (error: any) {
@@ -137,7 +143,7 @@ export function registerTimerHandlers(
   });
 
   // Stop tracking time
-  ipcMain.handle("timer:stop", async (_, stopTime?: number) => {
+  ipcMain.handle("timer:stop", async (_, note?: string, stopTime?: number) => {
     try {
       if (!timerState.isRunning) {
         return { success: false, error: "No timer is running." };
@@ -149,9 +155,10 @@ export function registerTimerHandlers(
       const elapsedSeconds = getTimerStateElapsed(endTimestamp);
 
       if (entryId) {
-        // Close the time entry
+        // Close the time entry and set note if provided
         await dbService.updateTimeEntry(entryId, {
           endTime: new Date(endTimestamp).toISOString().slice(11, 19),
+          ...(note !== undefined ? { note } : {}),
         });
       }
 
@@ -178,7 +185,7 @@ export function registerTimerHandlers(
         pauseStart: null,
       };
 
-      broadcastTimerState(getTimerWindow());
+      broadcastTimerState(getTimerWindow(), getMainWindow());
       logger.info(
         `Timer stopped for issue: ${issueId}, elapsed: ${elapsedSeconds}s`,
       );
@@ -217,7 +224,7 @@ export function registerTimerHandlers(
       timerState.pauseStart = Date.now();
       timerState.startTime = null; // Will be reset on resume
 
-      broadcastTimerState(getTimerWindow());
+      broadcastTimerState(getTimerWindow(), getMainWindow());
       logger.info("Timer paused");
       return { success: true, data: getTimerState() };
     } catch (error: any) {
@@ -243,7 +250,7 @@ export function registerTimerHandlers(
       timerState.pauseStart = null;
       timerState.startTime = Date.now();
 
-      broadcastTimerState(getTimerWindow());
+      broadcastTimerState(getTimerWindow(), getMainWindow());
       logger.info("Timer resumed");
       return { success: true, data: getTimerState() };
     } catch (error: any) {

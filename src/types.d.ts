@@ -114,7 +114,7 @@ declare global {
       };
       timer: {
         start: (issueId: string) => Promise<IpcResponse>;
-        stop: (stopTime?: number) => Promise<IpcResponse>;
+        stop: (note?: string, stopTime?: number) => Promise<IpcResponse>;
         pause: () => Promise<IpcResponse>;
         resume: () => Promise<IpcResponse>;
         getState: () => Promise<IpcResponse>;

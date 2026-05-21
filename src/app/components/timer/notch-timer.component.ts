@@ -2,7 +2,6 @@ import { Component, ChangeDetectionStrategy, input, output, inject, signal, Elem
 import { FormsModule } from '@angular/forms';
 import { IpcService } from '../../services/ipc.service';
 import { SearchBarComponent, type SearchResult } from '../common/search-bar.component';
-import { TimerService } from '../../services/timer.service';
 import type { Issue } from '../../models/issue';
 
 @Component({
@@ -170,7 +169,6 @@ import type { Issue } from '../../models/issue';
 })
 export class NotchTimerComponent {
   private ipc = inject(IpcService);
-  private timerService = inject(TimerService);
   private noteArea = viewChild<ElementRef<HTMLTextAreaElement>>('noteArea');
 
   isRunning = input(false);
@@ -179,7 +177,7 @@ export class NotchTimerComponent {
   localIssues = input<Issue[]>([]);
 
   start = output<void>();
-  stop = output<void>();
+  stop = output<string>();
   expand = output<void>();
   close = output<void>();
   resultSelected = output<SearchResult>();
@@ -292,7 +290,7 @@ export class NotchTimerComponent {
   }
 
   async confirmStop() {
-    await this.timerService.stop(this.stopNote);
+    this.stop.emit(this.stopNote); // Pass the stop note to parent
     this.isStopping.set(false);
     this.height.set(38);
     // Delay window shrink
@@ -301,6 +299,5 @@ export class NotchTimerComponent {
         this.ipc.resizeTimerWindow(this.width(), 38);
       }
     }, 300);
-    this.stop.emit(); // Standard event for closing/hiding after stop
   }
 }

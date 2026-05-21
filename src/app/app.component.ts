@@ -1,8 +1,9 @@
-import { Component, ChangeDetectionStrategy, inject, signal, effect, computed } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, effect, computed, OnDestroy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { TitleBarComponent } from './components/title-bar/title-bar.component';
 import { SideNavComponent } from './components/side-nav/side-nav.component';
 import { SettingsService } from './services/settings.service';
+import { IpcService } from './services/ipc.service';
 import { IdleDetectionService } from './services/idle-detection.service';
 import { TimerService } from './services/timer.service';
 import { DatabaseService } from './services/database.service';
@@ -88,6 +89,7 @@ import { SearchBarComponent, SearchResult } from './components/common/search-bar
 })
 export class AppComponent {
   private settings = inject(SettingsService);
+  private ipc = inject(IpcService);
   private idleDetection = inject(IdleDetectionService);
   private timerService = inject(TimerService);
   private db = inject(DatabaseService);
@@ -124,6 +126,8 @@ export class AppComponent {
     !window.location.href.includes('timer-overlay') &&
     !window.location.href.includes('windowType=timer');
 
+  private timerStateCleanup: (() => void) | null = null;
+
   constructor() {
     if (!this.isMainWindow) {
       // Timer overlay window needs transparent body for always-on-top overlay
@@ -133,6 +137,14 @@ export class AppComponent {
     } else {
       // Load issues and sync state on main window startup
       this.db.loadAll();
+
+      // Listen for timer state updates from the main process.
+      // When the timer stops, reload time entries so the dashboard sees the new entry.
+      this.timerStateCleanup = this.ipc.onTimerWindowStateUpdate((state) => {
+        if (!state.isRunning && !state.isPaused) {
+          this.db.reloadTimeEntries();
+        }
+      });
     }
 
     effect(() => {
@@ -152,6 +164,10 @@ export class AppComponent {
         this.idleDetection.setPromptOpen(true);
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    this.timerStateCleanup?.();
   }
 
   onIdleKeep(): void {
