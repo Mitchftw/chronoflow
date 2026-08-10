@@ -26,6 +26,11 @@ export async function initDatabase(): Promise<Database> {
   db = await open({ filename: dbPath, driver: sqlite3.Database });
   logger.info("Database opened successfully");
 
+  // Don't let a second process wait forever on a DB the primary instance
+  // has open (e.g. a Windows protocol launch racing the running app).
+  // Fail with SQLITE_BUSY after 10s instead of hanging the whole app.
+  await db.exec("PRAGMA busy_timeout = 10000");
+
   await db.exec("PRAGMA foreign_keys = ON");
   await createTables();
   logger.info("Database tables created successfully");

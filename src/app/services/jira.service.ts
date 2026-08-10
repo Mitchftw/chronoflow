@@ -57,7 +57,9 @@ export class JiraService {
     return [];
   }
 
-  /** Create a new Jira connection */
+  /** Create a new Jira connection. Throws with the IPC error message on
+   *  failure so the settings form can surface it to the user — a silently
+   *  swallowed error previously looked like the connection "disappeared". */
   async createConnection(data: {
     name?: string;
     domain: string;
@@ -71,37 +73,30 @@ export class JiraService {
     isDefault?: boolean;
     clientId?: string;
     clientSecret?: string;
-  }): Promise<JiraConnection | null> {
+  }): Promise<JiraConnection> {
     const api = this.getJiraApi();
-    if (!api) return null;
+    if (!api) throw new Error('Jira API not available');
 
-    try {
-      const res = await api.createConnection(data);
-      if (res.success && res.connection) {
-        await this.loadConnections();
-        return res.connection as JiraConnection;
-      }
-    } catch {
-      // Graceful fallback
+    const res = await api.createConnection(data);
+    if (res.success && res.connection) {
+      await this.loadConnections();
+      return res.connection as JiraConnection;
     }
-    return null;
+    throw new Error(res.error || 'Failed to create Jira connection');
   }
 
-  /** Update an existing Jira connection */
-  async updateConnection(id: string, updates: Partial<JiraConnection>): Promise<JiraConnection | null> {
+  /** Update an existing Jira connection. Throws on failure (see
+   *  createConnection) so the UI can show the real error. */
+  async updateConnection(id: string, updates: Partial<JiraConnection>): Promise<JiraConnection> {
     const api = this.getJiraApi();
-    if (!api) return null;
+    if (!api) throw new Error('Jira API not available');
 
-    try {
-      const res = await api.updateConnection({ id, updates });
-      if (res.success && res.connection) {
-        await this.loadConnections();
-        return res.connection as JiraConnection;
-      }
-    } catch {
-      // Graceful fallback
+    const res = await api.updateConnection({ id, updates });
+    if (res.success && res.connection) {
+      await this.loadConnections();
+      return res.connection as JiraConnection;
     }
-    return null;
+    throw new Error(res.error || 'Failed to update Jira connection');
   }
 
   /** Delete a Jira connection */

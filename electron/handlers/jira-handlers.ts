@@ -497,6 +497,9 @@ export function registerJiraHandlers() {
       };
 
       await dbService.createJiraConnection(connection);
+      logger.info(
+        `Jira connection created: ${connection.name || connection.domain} (${connection.id})`,
+      );
       return { success: true, connection };
     } catch (error: any) {
       logger.error("Failed to create Jira connection:", error);
@@ -518,6 +521,7 @@ export function registerJiraHandlers() {
 
         await dbService.updateJiraConnection(id, updatedConnection);
         const connection = await dbService.getJiraConnection(id);
+        logger.info(`Jira connection updated: ${id}`);
         return { success: true, connection };
       } catch (error: any) {
         logger.error("Failed to update Jira connection:", error);
@@ -532,6 +536,7 @@ export function registerJiraHandlers() {
   ipcMain.handle("jira:delete-connection", async (_, { id }) => {
     try {
       await dbService.deleteJiraConnection(id);
+      logger.info(`Jira connection deleted: ${id}`);
       return { success: true };
     } catch (error: any) {
       logger.error("Failed to delete Jira connection:", error);

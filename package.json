@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.8\n\n#### Fixes:\n- **About version:** the About panel now shows the real installed app version (from `app.getVersion()`) instead of a hardcoded \"0.1.0\", so it stays correct after every update."
+      "releaseNotes": "### ChronoFlow v0.1.9\n\n#### Fixes:\n- **Jira OAuth callback freeze:** the chronoflow:// callback could spawn a second app instance that hung on the locked database, freezing the app and preventing the connection from ever being saved. A heartbeat guard now makes duplicate instances exit immediately and hands the deep link to the running instance.\n- **Database hang protection:** DB initialization now uses a busy timeout and exits cleanly instead of hanging on a locked database.\n- **Visible save errors:** Jira connection save failures are now shown in the settings form and logged, instead of failing silently."
     }
   }
 }

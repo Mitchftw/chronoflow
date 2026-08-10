@@ -1095,7 +1095,16 @@ export class SettingsComponent {
       this.resetConnectionForm();
       await this.jiraService.loadConnections();
     } catch (err) {
+      // Surface the real error in the form instead of failing silently —
+      // a swallowed failure used to look like the connection "disappeared".
       console.error("Failed to save connection", err);
+      this.connectionTestResult.set({
+        success: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : "Failed to save connection. Check the app logs for details.",
+      });
     } finally {
       this.savingConnection.set(false);
     }

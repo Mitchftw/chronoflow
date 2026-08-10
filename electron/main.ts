@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, ipcMain, screen } from "electron";
 import * as dotenv from "dotenv";
 import * as path from "path";
+import * as fs from "fs";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -24,6 +25,55 @@ import { registerIdleHandlers } from "./handlers/idle-handlers";
 let mainWindow: BrowserWindow | null = null;
 let timerWindow: BrowserWindow | null = null;
 let timerWindowMode: "draggable" | "notch" | null = null;
+
+// ---- Single-instance heartbeat guard ----
+// Windows protocol launches (chronoflow://) can race Electron's
+// requestSingleInstanceLock and spawn a second main process. Such a
+// duplicate then hangs forever waiting on the SQLite DB the primary has
+// open — which freezes the OAuth callback and makes the connection save
+// fail. This heartbeat file lets any later main process see the primary is
+// alive and exit immediately instead of touching the DB.
+const instanceMarkerPath = path.join(
+  app.getPath("userData"),
+  ".instance-heartbeat",
+);
+let heartbeatInterval: NodeJS.Timeout | null = null;
+
+function writeHeartbeat(): void {
+  try {
+    fs.writeFileSync(instanceMarkerPath, String(process.pid), "utf8");
+  } catch (err) {
+    logger.error("Failed to write instance heartbeat:", err);
+  }
+}
+
+function anotherInstanceIsAlive(): boolean {
+  try {
+    const stat = fs.statSync(instanceMarkerPath);
+    if (Date.now() - stat.mtimeMs > 15000) return false; // stale heartbeat
+    const pid = Number(fs.readFileSync(instanceMarkerPath, "utf8"));
+    return Number.isInteger(pid) && pid > 0 && pid !== process.pid;
+  } catch {
+    return false;
+  }
+}
+
+function stopHeartbeat(): void {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+  // Only remove the marker if it's OURS — a duplicate instance that exits
+  // before writing one must not delete the primary's heartbeat.
+  try {
+    const pid = Number(fs.readFileSync(instanceMarkerPath, "utf8"));
+    if (pid === process.pid) {
+      fs.unlinkSync(instanceMarkerPath);
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 // Handle deep links
 if (process.defaultApp) {
@@ -750,11 +800,27 @@ function registerTimerWindowHandlers() {
 app.whenReady().then(async () => {
   logger.info("Application starting...");
 
+  // Duplicate-instance guard: a second process launched while the primary
+  // is alive (e.g. the OS launching the app for a chronoflow:// deep link)
+  // would hang on the DB lock. Hand off to the running instance and exit.
+  if (anotherInstanceIsAlive()) {
+    logger.warn(
+      "Another ChronoFlow instance is running — exiting to avoid a DB lock hang.",
+    );
+    app.exit(0);
+    return;
+  }
+  writeHeartbeat();
+  heartbeatInterval = setInterval(writeHeartbeat, 5000);
+
   try {
     await initDatabase();
     logger.info("Database initialized successfully");
   } catch (error) {
     logger.error("Database initialization error:", error);
+    stopHeartbeat();
+    app.exit(1);
+    return;
   }
 
   // Prime auto-hide from persisted settings so the very first timer-window
@@ -801,6 +867,7 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   closeDatabase();
+  stopHeartbeat();
   if (process.platform !== "darwin") {
     app.quit();
   }
@@ -808,6 +875,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   closeDatabase();
+  stopHeartbeat();
   // Clean up timer window
   if (timerWindow && !timerWindow.isDestroyed()) {
     timerWindow.close();
