@@ -1,5 +1,6 @@
 import { Injectable, inject, computed, signal } from '@angular/core';
 import type { JiraConnection, JiraIssue, TimeEntry, IpcResponse } from '../../types';
+import { formatJiraLocalIso } from '../utils/datetime';
 
 @Injectable({ providedIn: 'root' })
 export class JiraService {
@@ -29,7 +30,10 @@ export class JiraService {
   /** Load all saved Jira connections from the main process */
   async loadConnections(): Promise<JiraConnection[]> {
     const api = this.getJiraApi();
-    if (!api) return [];
+    if (!api) {
+      console.warn('[jira] loadConnections skipped: electronAPI.jira is unavailable in this window context');
+      return [];
+    }
 
     try {
       const res = await api.getConnections();
@@ -37,8 +41,18 @@ export class JiraService {
         this._connections.set(res.connections as JiraConnection[]);
         return res.connections as JiraConnection[];
       }
-    } catch {
-      // Graceful fallback
+      // Don't log the full res object — it may contain connection records
+      // (with accessToken/refreshToken/apiToken) on error paths.
+      console.warn('[jira] getConnections returned non-success (success:', String(res?.success), ')');
+    } catch (err) {
+      // Stringify defensively so connection tokens never end up in logs.
+      // Cast to a generic object so TS accepts `?.message` lookup regardless
+      // of strict-mode catch-variable typing.
+      const e = err as { message?: unknown } | null | undefined;
+      console.warn(
+        '[jira] getConnections threw:',
+        typeof e?.message === 'string' ? e.message : String(err),
+      );
     }
     return [];
   }
@@ -203,7 +217,10 @@ export class JiraService {
         issueKey: resolvedKey,
         timeSpentSeconds,
         comment: comment ?? `Work tracked via ChronoFlow`,
-        started: new Date(startTime).toISOString(),
+        // Jira Cloud rejects the bare `Z` (UTC) form that `.toISOString()`
+        // produces. It requires explicit local-timezone offset (`+HHMM`),
+        // which `formatJiraLocalIso` writes.
+        started: formatJiraLocalIso(new Date(startTime)),
       });
 
       if (res.success && res.worklog) {

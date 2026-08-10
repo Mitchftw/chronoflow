@@ -102,9 +102,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
   },
 
+  display: {
+    getDisplays: () => ipcRenderer.invoke("display:get-displays"),
+  },
+
   timerWindow: {
     create: (mode: "draggable" | "notch") =>
       ipcRenderer.invoke("timer-window:create", mode),
+    applyMode: (mode: "draggable" | "notch") =>
+      ipcRenderer.invoke("timer-window:apply-mode", mode),
+    applyNotchAutoHide: (enabled: boolean) =>
+      ipcRenderer.invoke("timer-window:apply-notch-auto-hide", enabled),
+    applyNotchDisplay: (displayId: number | null) =>
+      ipcRenderer.invoke("timer-window:apply-notch-display", displayId),
+    setPinned: (pinned: boolean) =>
+      ipcRenderer.send("timer-window:set-pinned", pinned),
     hide: () => ipcRenderer.invoke("timer-window:hide"),
     expand: () => ipcRenderer.invoke("timer-window:expand"),
     onStateUpdate: (callback: (state: any) => void) => {

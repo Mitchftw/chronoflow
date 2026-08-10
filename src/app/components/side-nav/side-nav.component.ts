@@ -79,6 +79,11 @@ export interface NavItem {
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               }
+              @case ('/vacation') {
+                <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.5h16.5v3.75H3.75V4.5zM3.75 9.75h16.5v9.75H3.75V9.75zM8.25 4.5v15M15.75 4.5v15M12 13.5h.008v.008H12v-.008z" />
+                </svg>
+              }
             }
           </span>
           @if (!collapsed()) {
@@ -158,6 +163,11 @@ export class SideNavComponent {
       route: '/timesheets',
       label: 'Timesheets',
       icon: `<svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
+    },
+    {
+      route: '/vacation',
+      label: 'Vacation',
+      icon: `<svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.5h16.5v3.75H3.75V4.5zM3.75 9.75h16.5v9.75H3.75V9.75zM8.25 4.5v15M15.75 4.5v15" /></svg>`,
     },
   ]);
 }

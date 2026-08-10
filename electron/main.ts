@@ -13,6 +13,7 @@ if (process.env["IS_TEST"] === "true") {
 
 import { autoUpdater } from "electron-updater";
 import { initDatabase, closeDatabase } from "./database";
+import * as db from "./db-service";
 import { logger } from "./utils/logger";
 import { registerJiraHandlers } from "./handlers/jira-handlers";
 import { registerStoreHandlers } from "./handlers/store-handlers";
@@ -199,7 +200,6 @@ function createWindow() {
   if (process.env['NODE_ENV'] === "development") {
     logger.info("Loading development URL: http://localhost:4200");
     mainWindow.loadURL("http://localhost:4200");
-    mainWindow.webContents.openDevTools();
   } else {
     const rendererPath = path.join(
       __dirname,
@@ -234,6 +234,72 @@ function createWindow() {
 
 let mouseCheckInterval: any = null;
 
+// ---- Notch auto-hide state ----
+// When enabled, the notch is tucked just off the top of the screen until the
+// mouse approaches its expected position; then it slides down. Renderer pin
+// requests (e.g. dropdown open, stop-note entry) keep it visible regardless.
+let autoHideEnabled = false;
+let isPinned = false;
+let isCollapsed = false;
+// Display the notch should appear on when multiple monitors are in use.
+// null = auto: follow the main window's display (fallback: primary).
+let notchDisplayId: number | null = null;
+let notchAnimation: { startTime: number; fromY: number; toY: number; duration: number } | null = null;
+let animationInterval: any = null;
+const NOTCH_ANIMATION_DURATION = 200;
+const NOTCH_PEEK_PX = 6;
+const NOTCH_TRIGGER_ZONE_PX = 14;
+
+function computeCollapsedY(displayY: number, windowHeight: number): number {
+  return displayY - windowHeight + NOTCH_PEEK_PX;
+}
+
+function resolveNotchDisplay(): Electron.Display {
+  if (notchDisplayId !== null) {
+    const found = screen.getAllDisplays().find(
+      (d) => d.id === notchDisplayId,
+    );
+    if (found) return found;
+  }
+  return mainWindow && !mainWindow.isDestroyed()
+    ? screen.getDisplayMatching(mainWindow.getBounds())
+    : screen.getPrimaryDisplay();
+}
+
+function animateNotchTo(targetY: number): void {
+  if (!timerWindow || timerWindow.isDestroyed()) return;
+  const currentY = timerWindow.getBounds().y;
+  if (currentY === targetY || notchAnimation?.toY === targetY) return;
+  notchAnimation = {
+    startTime: Date.now(),
+    fromY: currentY,
+    toY: targetY,
+    duration: NOTCH_ANIMATION_DURATION,
+  };
+  if (animationInterval) return;
+  animationInterval = setInterval(() => {
+    if (!notchAnimation || !timerWindow || timerWindow.isDestroyed()) {
+      if (animationInterval) {
+        clearInterval(animationInterval);
+        animationInterval = null;
+      }
+      notchAnimation = null;
+      return;
+    }
+    const elapsed = Date.now() - notchAnimation.startTime;
+    const t = Math.min(1, elapsed / notchAnimation.duration);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    const y = Math.round(notchAnimation.fromY + (notchAnimation.toY - notchAnimation.fromY) * eased);
+    const bounds = timerWindow.getBounds();
+    timerWindow.setBounds({ x: bounds.x, y, width: bounds.width, height: bounds.height });
+    if (t >= 1) {
+      clearInterval(animationInterval);
+      animationInterval = null;
+      notchAnimation = null;
+    }
+  }, 16);
+}
+
 function startMouseTracking() {
   if (process.env["IS_TEST"] === "true") return;
   if (mouseCheckInterval) return;
@@ -244,12 +310,61 @@ function startMouseTracking() {
     }
     const cursor = screen.getCursorScreenPoint();
     const bounds = timerWindow.getBounds();
-    const isInside = (
+    const activeDisplay = screen.getDisplayMatching(bounds);
+    const { y: displayY } = activeDisplay.bounds;
+
+    if (timerWindowMode === "notch" && autoHideEnabled) {
+      const centerX = bounds.x + bounds.width / 2;
+      const inHorizontalFootprint =
+        cursor.x >= centerX - bounds.width / 2 - 20 &&
+        cursor.x <= centerX + bounds.width / 2 + 20;
+      const inTriggerZone =
+        inHorizontalFootprint &&
+        cursor.y <= displayY + NOTCH_TRIGGER_ZONE_PX;
+      const inWindow =
+        cursor.x >= bounds.x &&
+        cursor.x <= bounds.x + bounds.width &&
+        cursor.y >= bounds.y &&
+        cursor.y <= bounds.y + bounds.height;
+
+      if (isPinned) {
+        // Pinned: snap to expanded and capture clicks while inside.
+        animateNotchTo(displayY);
+        isCollapsed = false;
+        timerWindow.setIgnoreMouseEvents(!inWindow);
+        return;
+      }
+
+      if (isCollapsed) {
+        // Hidden — only the 6px peek is visible. Show when cursor enters
+        // the trigger zone at the top of the screen.
+        timerWindow.setIgnoreMouseEvents(true, { forward: true });
+        if (inTriggerZone) {
+          animateNotchTo(displayY);
+          isCollapsed = false;
+          timerWindow.setIgnoreMouseEvents(false);
+        }
+        return;
+      }
+
+      // Expanded (auto-hide on, not pinned, not collapsed).
+      if (inWindow) {
+        timerWindow.setIgnoreMouseEvents(false);
+        return;
+      }
+      timerWindow.setIgnoreMouseEvents(true, { forward: true });
+      animateNotchTo(computeCollapsedY(displayY, bounds.height));
+      isCollapsed = true;
+      return;
+    }
+
+    // Default (draggable mode, or notch without auto-hide): click-through
+    // outside the window footprint.
+    const isInside =
       cursor.x >= bounds.x &&
       cursor.x <= bounds.x + bounds.width &&
       cursor.y >= bounds.y &&
-      cursor.y <= bounds.y + bounds.height
-    );
+      cursor.y <= bounds.y + bounds.height;
     if (isInside) {
       timerWindow.setIgnoreMouseEvents(false);
     } else {
@@ -263,21 +378,38 @@ function stopMouseTracking() {
     clearInterval(mouseCheckInterval);
     mouseCheckInterval = null;
   }
+  if (animationInterval) {
+    clearInterval(animationInterval);
+    animationInterval = null;
+  }
+  notchAnimation = null;
 }
 
 function createTimerWindow(mode: "draggable" | "notch") {
-  timerWindowMode = mode;
+  // If a timer window is already open:
+  //   - same mode → just ensure it's visible & focused
+  //   - different mode → close it so we can recreate with the new mode & URL
+  //     (the window's URL contains ?mode=X which determines what the renderer shows)
   if (timerWindow && !timerWindow.isDestroyed()) {
-    timerWindow.show();
-    timerWindow.focus();
-    if (mode === "notch") {
-      startMouseTracking();
-    } else {
-      stopMouseTracking();
-      timerWindow.setIgnoreMouseEvents(false);
+    if (timerWindowMode === mode) {
+      timerWindow.show();
+      timerWindow.focus();
+      if (mode === "notch") {
+        startMouseTracking();
+      } else {
+        stopMouseTracking();
+        timerWindow.setIgnoreMouseEvents(false);
+      }
+      return;
     }
-    return;
+    // Mode mismatch — close so the next block creates a fresh window with the
+    // correct mode URL, size, position, and mouse-tracking flags.
+    timerWindow.close();
+    timerWindow = null;
+    timerWindowMode = null;
   }
+
+  timerWindowMode = mode;
 
   const isNotch = mode === "notch";
 
@@ -307,16 +439,19 @@ function createTimerWindow(mode: "draggable" | "notch") {
   });
 
   // Position: notch mode at top-center, draggable mode at bottom-right
-  const activeDisplay = (mainWindow && !mainWindow.isDestroyed())
-    ? screen.getDisplayMatching(mainWindow.getBounds())
-    : screen.getPrimaryDisplay();
+  const activeDisplay = resolveNotchDisplay();
 
   if (isNotch) {
     const { width: screenWidth, x: displayX, y: displayY } = activeDisplay.bounds;
+    const initialHeight = isNotch ? 38 : 100;
+    const startY = autoHideEnabled
+      ? computeCollapsedY(displayY, initialHeight)
+      : displayY;
     timerWindow.setPosition(
       displayX + Math.round((screenWidth - 324) / 2),
-      displayY,
+      startY,
     );
+    isCollapsed = autoHideEnabled;
     timerWindow.setAlwaysOnTop(true, "screen-saver");
     if (process.env["IS_TEST"] !== "true") {
       timerWindow.setIgnoreMouseEvents(true, { forward: true });
@@ -365,9 +500,23 @@ function createTimerWindow(mode: "draggable" | "notch") {
     });
   }
 
-  timerWindow.on("closed", () => {
-    timerWindow = null;
-    timerWindowMode = null;
+  // Capture the reference at registration time so the listener only
+  // nulls the global when it still points to *this* window. Without the
+  // guard, in the mode-mismatch path a fresh `BrowserWindow` is assigned to
+  // `timerWindow` before the listener fires, and we'd clobber the new one.
+  const trackedWindow = timerWindow;
+  trackedWindow.on("closed", () => {
+    if (timerWindow === trackedWindow) {
+      timerWindow = null;
+      timerWindowMode = null;
+      isCollapsed = false;
+      isPinned = false;
+      notchAnimation = null;
+      if (animationInterval) {
+        clearInterval(animationInterval);
+        animationInterval = null;
+      }
+    }
     stopMouseTracking();
   });
 }
@@ -382,6 +531,28 @@ function hideTimerWindow() {
 // ---- IPC: Timer Window Management ----
 
 function registerTimerWindowHandlers() {
+  // List connected displays so the renderer can offer a screen picker for
+  // the notch (multi-monitor setups).
+  ipcMain.handle("display:get-displays", async () => {
+    try {
+      const primary = screen.getPrimaryDisplay();
+      const displays = screen.getAllDisplays().map((d) => ({
+        id: d.id,
+        label: d.label || (d.id === primary.id ? "Primary" : `Display ${d.id}`),
+        isPrimary: d.id === primary.id,
+        bounds: d.bounds,
+        workArea: d.workArea,
+      }));
+      return { success: true, displays };
+    } catch (error: any) {
+      logger.error("Failed to list displays:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to list displays",
+      };
+    }
+  });
+
   ipcMain.handle("timer-window:create", async (_, mode: "draggable" | "notch") => {
     try {
       createTimerWindow(mode);
@@ -391,6 +562,27 @@ function registerTimerWindowHandlers() {
       return {
         success: false,
         error: error.message || "Failed to create timer window",
+      };
+    }
+  });
+
+  // Apply a timer-mode change to the *currently open* timer window.
+  // No-op if no timer window is open — so toggling the setting in
+  // /settings doesn't unexpectedly pop the overlay.
+  ipcMain.handle("timer-window:apply-mode", async (_, mode: "draggable" | "notch") => {
+    try {
+      // Skip the redundant work when nothing has to change. createTimerWindow
+      // would still re-toggle mouse-tracking and refocus in that case.
+      if (timerWindow && !timerWindow.isDestroyed() && timerWindowMode !== mode) {
+        // createTimerWindow owns the close+recreate branch on mode mismatch.
+        createTimerWindow(mode);
+      }
+      return { success: true };
+    } catch (error: any) {
+      logger.error("Failed to apply timer mode:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to apply timer mode",
       };
     }
   });
@@ -423,20 +615,122 @@ function registerTimerWindowHandlers() {
     }
   });
 
+  // Toggle auto-hide on the notch. Stored as a flag for the next time the
+  // notch window is created, and applied to the live window if it's open.
+  ipcMain.handle(
+    "timer-window:apply-notch-auto-hide",
+    async (_, enabled: boolean) => {
+      try {
+        autoHideEnabled = !!enabled;
+        if (
+          timerWindow &&
+          !timerWindow.isDestroyed() &&
+          timerWindowMode === "notch" &&
+          timerWindow.isVisible()
+        ) {
+          const bounds = timerWindow.getBounds();
+          const activeDisplay = screen.getDisplayMatching(bounds);
+          const targetY = autoHideEnabled
+            ? computeCollapsedY(activeDisplay.bounds.y, bounds.height)
+            : activeDisplay.bounds.y;
+          isCollapsed = autoHideEnabled;
+          animateNotchTo(targetY);
+        }
+        return { success: true };
+      } catch (error: any) {
+        logger.error("Failed to apply notch auto-hide:", error);
+        return {
+          success: false,
+          error: error.message || "Failed to apply notch auto-hide",
+        };
+      }
+    },
+  );
+
+  // Choose which display the notch appears on when multiple monitors are
+  // connected. Stores the preference for the next notch creation and moves
+  // the live notch window to the chosen display if it's currently open.
+  ipcMain.handle(
+    "timer-window:apply-notch-display",
+    async (_, displayId: number | null) => {
+      try {
+        notchDisplayId =
+          typeof displayId === "number" && Number.isFinite(displayId)
+            ? displayId
+            : null;
+        if (
+          timerWindow &&
+          !timerWindow.isDestroyed() &&
+          timerWindowMode === "notch" &&
+          timerWindow.isVisible()
+        ) {
+          const display = resolveNotchDisplay();
+          const { width: screenWidth, x: displayX, y: displayY } =
+            display.bounds;
+          const bounds = timerWindow.getBounds();
+          const newX = displayX + Math.round((screenWidth - bounds.width) / 2);
+          const newY = autoHideEnabled
+            ? computeCollapsedY(displayY, bounds.height)
+            : displayY;
+          isCollapsed = autoHideEnabled;
+          timerWindow.setBounds({
+            x: newX,
+            y: newY,
+            width: bounds.width,
+            height: bounds.height,
+          });
+        }
+        return { success: true };
+      } catch (error: any) {
+        logger.error("Failed to apply notch display:", error);
+        return {
+          success: false,
+          error: error.message || "Failed to apply notch display",
+        };
+      }
+    },
+  );
+
+  // Pin the notch window open while the renderer is running an interaction
+  // (dropdown visible, stop-note entry). Prevents auto-hide from collapsing
+  // mid-interaction. If currently collapsed and pinned becomes true,
+  // immediately animate back to expanded.
+  ipcMain.on("timer-window:set-pinned", (_event, pinned: boolean) => {
+    isPinned = !!pinned;
+    if (
+      isPinned &&
+      isCollapsed &&
+      timerWindow &&
+      !timerWindow.isDestroyed() &&
+      timerWindowMode === "notch" &&
+      autoHideEnabled
+    ) {
+      const activeDisplay = screen.getDisplayMatching(timerWindow.getBounds());
+      animateNotchTo(activeDisplay.bounds.y);
+      isCollapsed = false;
+    }
+  });
+
   ipcMain.handle("timer-window:resize", async (event, { width, height }) => {
     if (timerWindow && !timerWindow.isDestroyed()) {
       const oldBounds = timerWindow.getBounds();
-      
+
       if (timerWindowMode === "notch") {
         const activeDisplay = screen.getDisplayMatching(oldBounds);
         const { width: screenWidth, x: displayX, y: displayY } = activeDisplay.bounds;
         const newX = displayX + Math.round((screenWidth - width) / 2);
-        
+        // If currently collapsed (auto-hide on), keep the window's Y in the
+        // collapsed position so only the 6px peek remains visible. Otherwise
+        // dock it at the top of the display.
+        const newY = isCollapsed
+          ? computeCollapsedY(displayY, height)
+          : displayY;
+
         timerWindow.setBounds({
           x: newX,
-          y: displayY,
+          y: newY,
           width: width,
-          height: height
+          height: height,
         });
       } else {
         timerWindow.setSize(width, height);
@@ -458,13 +752,37 @@ app.whenReady().then(async () => {
     logger.error("Database initialization error:", error);
   }
 
+  // Prime auto-hide from persisted settings so the very first timer-window
+  // creation after a cold start honors the user's preference. Settings are
+  // also re-applied via IPC when the user toggles the setting, so this is
+  // only needed because SettingsService.load() bypasses update() and we
+  // would otherwise miss the initial preference.
+  try {
+    const appSettings = (await db.getSetting("app")) as
+      | Record<string, unknown>
+      | null;
+    if (
+      appSettings &&
+      typeof appSettings["autoHideNotch"] === "boolean"
+    ) {
+      autoHideEnabled = appSettings["autoHideNotch"] as boolean;
+      logger.info(`Auto-hide primed from settings: ${autoHideEnabled}`);
+    }
+    if (appSettings && typeof appSettings["notchDisplayId"] === "number") {
+      notchDisplayId = appSettings["notchDisplayId"] as number;
+      logger.info(`Notch display primed from settings: ${notchDisplayId}`);
+    }
+  } catch (err) {
+    logger.error("Failed to prime auto-hide from settings:", err);
+  }
+
   // Register all IPC handlers
   registerWindowHandlers(() => mainWindow);
   registerStoreHandlers();
   registerJiraHandlers();
   registerTimerHandlers(() => timerWindow, () => mainWindow);
   registerTimerWindowHandlers();
-  registerIdleHandlers(() => mainWindow);
+  registerIdleHandlers(() => mainWindow, () => timerWindow);
   registerUpdaterHandlers();
 
   createWindow();
@@ -489,6 +807,13 @@ app.on("before-quit", () => {
   if (timerWindow && !timerWindow.isDestroyed()) {
     timerWindow.close();
     timerWindow = null;
+  }
+  isCollapsed = false;
+  isPinned = false;
+  notchAnimation = null;
+  if (animationInterval) {
+    clearInterval(animationInterval);
+    animationInterval = null;
   }
 });
 

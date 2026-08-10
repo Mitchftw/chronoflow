@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.6\n\n#### Fixes & Refactoring:\n- **Jira OAuth Token Refresh Fix:** Fixed an issue where the access token refresh logic was bypassed for Jira issue search (`jira:search`) and worklog syncing (`jira:add-worklog`) due to missing connection ID parameters from the frontend."
+      "releaseNotes": "### ChronoFlow v0.1.7\n\n#### New Features:\n- **Notch auto-hide:** the notch timer now tucks away at the top of the screen and slides down when your mouse approaches — perfect for remote-desktop-style setups.\n- **Multi-monitor notch:** choose which screen the notch appears on via Settings → Appearance → Notch screen.\n- **Vacation page:** log Jira \"verlof\" tickets from the new /vacation page, with defaults for hours per workday and a default ticket key in Settings.\n\n#### Fixes:\n- **Jira worklog timestamps:** synced times now use your local timezone offset instead of a hardcoded UTC stamp, which Jira Cloud rejected.\n- **Idle detection:** setting the idle threshold to \"Off\" now truly disables AFK prompts, and suspend/lock events are forwarded to the timer overlay too.\n- **Idle entries crossing midnight** are split per day so daily totals stay accurate.\n- **Timer overlay search** now loads Jira connections on focus, preventing a race where the first search returned nothing.\n- DevTools no longer open automatically when running `npm run dev`."
     }
   }
 }

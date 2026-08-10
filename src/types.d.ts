@@ -81,6 +81,14 @@ export interface IpcResponse<T = any> {
   error?: string;
 }
 
+export interface DisplayInfo {
+  id: number;
+  label: string;
+  isPrimary: boolean;
+  bounds: { x: number; y: number; width: number; height: number };
+  workArea: { x: number; y: number; width: number; height: number };
+}
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -128,8 +136,15 @@ declare global {
         getDeletedWorklogs: () => Promise<IpcResponse & { worklogs?: any[] }>;
         clearDeletedWorklog: (id: string) => Promise<IpcResponse>;
       };
+      display: {
+        getDisplays: () => Promise<IpcResponse<{ displays: DisplayInfo[] }>>;
+      };
       timerWindow: {
         create: (mode: 'draggable' | 'notch') => Promise<IpcResponse>;
+        applyMode: (mode: 'draggable' | 'notch') => Promise<IpcResponse>;
+        applyNotchAutoHide: (enabled: boolean) => Promise<IpcResponse>;
+        applyNotchDisplay: (displayId: number | null) => Promise<IpcResponse>;
+        setPinned: (pinned: boolean) => void;
         hide: () => Promise<void>;
         expand: () => Promise<void>;
         onStateUpdate: (callback: (state: any) => void) => () => void;

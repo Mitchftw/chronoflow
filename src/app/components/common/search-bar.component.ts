@@ -73,18 +73,18 @@ export type SearchResult =
           type="text"
           [value]="query()"
           (input)="onInput($event)"
-          (focus)="focused.set(true)"
+          (focus)="onFocus()"
           (blur)="onBlur()"
           (keydown.escape)="focused.set(false)"
           [placeholder]="placeholder()"
-          class="w-full bg-transparent border-none h-[36px] pl-7 pr-7 text-[11px] text-foreground placeholder:text-zinc-100/60 focus:outline-none"
+          class="w-full bg-transparent border-none h-[36px] pl-7 pr-7 text-[11px] text-white placeholder:text-zinc-400/60 focus:outline-none caret-primary selection:bg-primary/40"
         />
       } @else if (variant() === 'draggable') {
         <input
           type="text"
           [value]="query()"
           (input)="onInput($event)"
-          (focus)="focused.set(true)"
+          (focus)="onFocus()"
           (blur)="onBlur()"
           (keydown.escape)="focused.set(false)"
           [placeholder]="placeholder()"
@@ -95,7 +95,7 @@ export type SearchResult =
           type="text"
           [value]="query()"
           (input)="onInput($event)"
-          (focus)="focused.set(true)"
+          (focus)="onFocus()"
           (blur)="onBlur()"
           (keydown.escape)="focused.set(false)"
           [placeholder]="placeholder()"
@@ -145,13 +145,20 @@ export type SearchResult =
           : 'absolute left-0 right-0 top-full mt-2 max-h-80 rounded-2xl border border-border/40 bg-card/90 backdrop-blur-lg shadow-2xl animate-in fade-in slide-in-from-top-2 p-1.5'"
       >
         @if (results().length === 0 && !searchingJira()) {
-          <div class="px-4 py-8 text-center text-xs font-semibold text-muted-foreground/60 italic">
-            @if (query().length >= 2) {
-              No results found for "{{ query() }}"
-            } @else {
-              Type at least 2 characters to search...
-            }
-          </div>
+          @if (query().length >= 2 && jiraService.connections().length === 0) {
+            <div class="px-4 py-6 text-center text-xs font-semibold text-muted-foreground/70 space-y-1">
+              <p class="italic">No Jira connection configured.</p>
+              <p>Add one in <span class="text-primary">Settings → Jira Integration</span> to search remote issues.</p>
+            </div>
+          } @else {
+            <div class="px-4 py-8 text-center text-xs font-semibold text-muted-foreground/60 italic">
+              @if (query().length >= 2) {
+                No results found for "{{ query() }}"
+              } @else {
+                Type at least 2 characters to search...
+              }
+            </div>
+          }
         } @else {
           @for (group of groupedResults(); track group.label) {
             <!-- Section header -->
@@ -224,7 +231,10 @@ export type SearchResult =
   `,
 })
 export class SearchBarComponent {
-  private readonly jiraService = inject(JiraService);
+  // `protected` (not private) because the template reads `jiraService.connections()`
+  // to render the empty-connections UX hint. Angular strict template checking
+  // rejects private members in templates.
+  protected readonly jiraService = inject(JiraService);
   private readonly ipc = inject(IpcService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -330,6 +340,22 @@ export class SearchBarComponent {
   }
 
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Called when the input gains focus. Ensures Jira connections are loaded
+   * before any search fires — defends against the timer-overlay window's
+   * SearchBar being the *first* thing to instantiate JiraService, where
+   * the constructor's async `loadConnections` could race with the user's
+   * first keystroke, leaving `JiraService._connections` empty when the
+   * debounced Jira search ran. Gated so we only refetch when connections
+   * are actually missing — no IPC spam on repeat focus.
+   */
+  onFocus(): void {
+    this.focused.set(true);
+    if (this.jiraService.connections().length === 0) {
+      void this.jiraService.loadConnections();
+    }
+  }
 
   onInput(event: Event): void {
     const value = (event.target as HTMLInputElement).value;

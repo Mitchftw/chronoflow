@@ -21,12 +21,17 @@ export class IdleDetectionService {
   private readonly settingsService = inject(SettingsService);
   private readonly destroyRef = inject(DestroyRef);
 
-  /** Current idle state */
+  /** Current idle state. The initial thresholdSeconds matches the field
+   *  default below so prompt-decision effects can't see a stale 0 before
+   *  the settings effect fires (which would let the AFK prompt slip
+   *  through when disabled). We use a literal here because class-field
+   *  initializers run in declaration order and `this.thresholdSeconds`
+   *  hasn't been assigned yet at this point — TS2729 otherwise. */
   private readonly _idleState = signal<IdleState>({
     isIdle: false,
     idleSeconds: 0,
     startTime: null,
-    thresholdSeconds: this.parseThreshold(0),
+    thresholdSeconds: 300,
   });
   readonly idleState = this._idleState.asReadonly();
 
@@ -80,6 +85,10 @@ export class IdleDetectionService {
   /** Check whether we should show the idle prompt */
   shouldPromptForIdle(): IdlePromptDecision | null {
     const state = this._idleState();
+    // AFK detection disabled via Settings → Idle Threshold slider at 0.
+    // Without this gate, `state.idleSeconds >= 0` always holds and any
+    // idle/wake event would spawn a prompt the user explicitly opted out of.
+    if (state.thresholdSeconds <= 0) return null;
     if (!this.timerService.isRunning() || this._isPromptOpen) return null;
     if (state.idleSeconds < state.thresholdSeconds) return null;
 
@@ -95,6 +104,7 @@ export class IdleDetectionService {
    * (e.g., after returning from suspend/lock)
    */
   shouldPromptFromStoredTimestamp(): IdlePromptDecision | null {
+    if (this.thresholdSeconds <= 0) return null;
     if (!this.idleStartTimestamp) return null;
     if (!this.timerService.isRunning() || this._isPromptOpen) return null;
 
@@ -111,8 +121,21 @@ export class IdleDetectionService {
 
   /** Update threshold from settings (pass 0 to disable) */
   updateThreshold(minutes: number): void {
-    this.thresholdSeconds = this.parseThreshold(minutes);
-    this._idleState.update((s) => ({ ...s, thresholdSeconds: this.thresholdSeconds }));
+    const next = this.parseThreshold(minutes);
+    this.thresholdSeconds = next;
+    if (next <= 0) {
+      // AFK disabled: drop any pending "is idle" state AND any
+      // suspend/lock timestamp so a stale resume can't re-fire the prompt.
+      this._idleState.set({
+        isIdle: false,
+        idleSeconds: 0,
+        startTime: null,
+        thresholdSeconds: 0,
+      });
+      this.idleStartTimestamp = null;
+      return;
+    }
+    this._idleState.update((s) => ({ ...s, thresholdSeconds: next }));
   }
 
   /** Reset idle state (e.g., after user interaction detected) */

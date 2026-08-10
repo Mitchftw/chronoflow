@@ -13,7 +13,8 @@ import {
 import { JiraService } from "../../services/jira.service";
 import { UpdateService } from "../../services/update.service";
 import { IdleDetectionService } from "../../services/idle-detection.service";
-import type { JiraConnection } from "../../../types";
+import { IpcService } from "../../services/ipc.service";
+import type { JiraConnection, DisplayInfo } from "../../../types";
 
 @Component({
   selector: "app-settings",
@@ -68,9 +69,7 @@ import type { JiraConnection } from "../../../types";
                 </button>
               }
             </div>
-          </div>
-
-          <!-- Timer mode -->
+          </div>          <!-- Timer mode -->
           <div
             class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
           >
@@ -86,17 +85,69 @@ import type { JiraConnection } from "../../../types";
               @for (mode of timerModeOptions; track mode.value) {
                 <button
                   class="rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer"
-                  [class]="
-                    settings().timerMode === mode.value
-                      ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25'
-                      : 'text-muted-foreground/80 hover:text-foreground hover:bg-secondary/40'
-                  "
+                  [class]="settings().timerMode === mode.value
+                    ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25'
+                    : 'text-muted-foreground/80 hover:text-foreground hover:bg-secondary/40'"
                   (click)="setTimerMode(mode.value)"
                 >
                   {{ mode.label }}
                 </button>
               }
             </div>
+          </div>
+
+          <!-- Notch auto-hide -->
+          <div
+            class="flex items-center justify-between gap-3"
+          >
+            <div>
+              <p class="text-sm font-semibold text-foreground/95">
+                Auto-hide Notch
+                <span class="ml-2 inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary border border-primary/20">Notch only</span>
+              </p>
+              <p class="text-xs text-muted-foreground/60 mt-0.5">
+                Tuck the notch out of the way; it slides down when your mouse approaches the top of the screen.
+              </p>
+            </div>
+            <button
+              role="switch"
+              [attr.aria-checked]="settings().autoHideNotch"
+              (click)="toggleAutoHideNotch()"
+              class="relative inline-flex h-6.5 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+              [class]="settings().autoHideNotch ? 'bg-primary' : 'bg-border/60'"
+            >
+              <span
+                class="pointer-events-none inline-block size-5.5 rounded-full bg-white shadow-md ring-0 transition-transform duration-300"
+                [class]="settings().autoHideNotch ? 'translate-x-4.5' : 'translate-x-0'"
+              ></span>
+            </button>
+          </div>
+
+          <!-- Notch display screen -->
+          <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div>
+              <p class="text-sm font-semibold text-foreground/95">
+                Notch screen
+                <span class="ml-2 inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary border border-primary/20">Notch only</span>
+              </p>
+              <p class="text-xs text-muted-foreground/60 mt-0.5">
+                Choose which monitor the notch appears on when using multiple screens.
+              </p>
+            </div>
+            <select
+              [value]="notchDisplayValue()"
+              (change)="setNotchDisplay($any($event.target).value)"
+              class="w-full sm:w-56 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner cursor-pointer self-start sm:self-auto"
+            >
+              <option value="">Auto (current screen)</option>
+              @for (display of displays(); track display.id) {
+                <option [value]="display.id">
+                  {{ display.label }}{{ display.isPrimary ? " (primary)" : "" }} · {{ display.bounds.width }}×{{ display.bounds.height }}
+                </option>
+              }
+            </select>
           </div>
 
           <!-- Round to 15m -->
@@ -566,6 +617,72 @@ import type { JiraConnection } from "../../../types";
         }
       </section>
 
+      <!-- ═══ Vacation Defaults ═══ -->
+      <section
+        class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-6 shadow-md transition-all duration-300"
+      >
+        <h2
+          class="mb-5 text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20"
+        >
+          Vacation
+        </h2>
+
+        <div class="space-y-3.5">
+          <p class="text-xs text-muted-foreground/60 leading-relaxed">
+            Defaults applied when logging vacation on a Jira verlof ticket from
+            <span class="text-foreground/80 font-semibold">/vacation</span>.
+          </p>
+
+          <!-- Default hours per workday -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-foreground/95">
+                Hours per workday
+              </p>
+              <p class="text-xs text-muted-foreground/60 mt-0.5">
+                Standard is 8h. Use 0.5 increments for part-time schedules.
+              </p>
+            </div>
+            <div class="flex items-center gap-2 self-start sm:self-auto">
+              <input
+                type="number"
+                min="0"
+                max="24"
+                step="0.5"
+                [value]="settings().defaultVacationHours"
+                (input)="
+                  setDefaultVacationHours(
+                    $any($event.target).valueAsNumber ?? 0
+                  )
+                "
+                class="w-20 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+              />
+              <span class="text-xs font-semibold text-muted-foreground/70">h</span>
+            </div>
+          </div>
+
+          <!-- Default verlof issue key -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-border/20">
+            <div>
+              <p class="text-sm font-semibold text-foreground/95">
+                Default verlof ticket
+              </p>
+              <p class="text-xs text-muted-foreground/60 mt-0.5">
+                Jira key to pre-select on <span class="font-semibold">/vacation</span>&mdash;e.g.
+                <span class="font-mono text-primary/90">VERL-12</span>. Leave blank to pick each time.
+              </p>
+            </div>
+            <input
+              type="text"
+              [value]="settings().defaultVacationIssueKey ?? ''"
+              (input)="setDefaultVacationIssueKey($any($event.target).value)"
+              placeholder="e.g. VERL-12"
+              class="w-40 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-mono font-bold text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner self-start sm:self-auto"
+            />
+          </div>
+        </div>
+      </section>
+
       <!-- ═══ Updates ═══ -->
       <section
         class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-6 shadow-md transition-all duration-300"
@@ -685,6 +802,19 @@ export class SettingsComponent {
   readonly settingsService = inject(SettingsService);
   readonly jiraService = inject(JiraService);
   readonly updateService = inject(UpdateService);
+  readonly ipcService = inject(IpcService);
+
+  // Connected displays, used by the "Notch screen" picker.
+  readonly displays = signal<DisplayInfo[]>([]);
+  readonly notchDisplayValue = computed(() => {
+    const id = this.settings().notchDisplayId;
+    if (id !== null && this.displays().some((d) => d.id === id)) return id;
+    return "";
+  });
+
+  constructor() {
+    void this.loadDisplays();
+  }
 
   readonly settings = this.settingsService.settings;
   readonly connections = this.jiraService.connections;
@@ -737,6 +867,26 @@ export class SettingsComponent {
     this.settingsService.update({ timerMode: value });
   }
 
+  toggleAutoHideNotch(): void {
+    this.settingsService.update({ autoHideNotch: !this.settings().autoHideNotch });
+  }
+
+  async loadDisplays(): Promise<void> {
+    try {
+      this.displays.set(await this.ipcService.getDisplays());
+    } catch (err) {
+      console.error("Failed to load displays", err);
+    }
+  }
+
+  setNotchDisplay(value: string): void {
+    const parsed = value === "" ? null : Number(value);
+    this.settingsService.update({
+      notchDisplayId:
+        parsed === null || Number.isNaN(parsed) ? null : parsed,
+    });
+  }
+
   setIdleThreshold(minutes: number): void {
     this.settingsService.update({ idleThresholdMinutes: minutes });
   }
@@ -747,6 +897,20 @@ export class SettingsComponent {
 
   toggleAutoUpdate(): void {
     this.settingsService.update({ autoUpdate: !this.settings().autoUpdate });
+  }
+
+  setDefaultVacationHours(hours: number): void {
+    if (!Number.isFinite(hours) || hours < 0) return;
+    this.settingsService.update({
+      defaultVacationHours: Math.min(24, Math.round(hours * 2) / 2),
+    });
+  }
+
+  setDefaultVacationIssueKey(value: string): void {
+    const trimmed = value.trim().toUpperCase();
+    this.settingsService.update({
+      defaultVacationIssueKey: trimmed ? trimmed : null,
+    });
   }
 
   // ── Connection Form Control ──

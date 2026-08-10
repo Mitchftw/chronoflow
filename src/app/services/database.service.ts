@@ -13,6 +13,7 @@ import type {
   JiraConnectionCreate,
 } from '../models/jira-connection';
 import { format } from 'date-fns';
+import { formatJiraLocalIso, parseLocalDateTime } from '../utils/datetime';
 
 @Injectable({ providedIn: 'root' })
 export class DatabaseService {
@@ -181,7 +182,13 @@ export class DatabaseService {
                 issueKey: issue.jiraIssueKey,
                 worklogId: entry.jiraWorklogId,
                 timeSpentSeconds: durationSeconds,
-                started: `${entry.date}T${entry.startTime}.000+0000`,
+                // Jira rejects `Z` (UTC) form and treats a hardcoded `+0000`
+                // literal as a misnamed UTC stamp. Build a real local Date
+                // from the stored date+time and format with the user's
+                // actual timezone offset (e.g. `+0200` for CEST).
+                started: formatJiraLocalIso(
+                  parseLocalDateTime(entry.date, entry.startTime),
+                ),
                 comment: entry.note,
               });
 
@@ -206,7 +213,11 @@ export class DatabaseService {
               const res: any = await this.ipc.jiraSyncWorklog({
                 issueKey: issue.jiraIssueKey,
                 timeSpentSeconds: durationSeconds,
-                started: `${entry.date}T${entry.startTime}.000+0000`,
+                // See jiraUpdateWorklog note above — same Jira format
+                // requirement and same local-wall-clock interpretation.
+                started: formatJiraLocalIso(
+                  parseLocalDateTime(entry.date, entry.startTime),
+                ),
                 comment: entry.note,
               });
 

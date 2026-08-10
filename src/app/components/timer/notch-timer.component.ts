@@ -192,6 +192,11 @@ export class NotchTimerComponent {
   private startWidth = 0;
   private resizeSide: 'left' | 'right' = 'right';
 
+  // Tracks the pending shrink-timeout fired from onDropdownVisible(false).
+  // Cleared on re-entry so a fast open→close→open doesn't leave a stale
+  // pin-release running ~300ms after the user re-opens the dropdown.
+  private dropdownShrinkTimeout: ReturnType<typeof setTimeout> | null = null;
+
   onMouseEnter() {
     this.ipc.setIgnoreMouse(false);
   }
@@ -249,15 +254,29 @@ export class NotchTimerComponent {
   onDropdownVisible(visible: boolean) {
     const targetHeight = visible ? 350 : 38;
     this.height.set(targetHeight);
-    
+
+    // Cancel any pending shrink-and-unpin from a previous dropdown close,
+    // otherwise a stale timeout fires ~300ms later and un-pins the window
+    // even though the user re-opened the dropdown.
+    if (this.dropdownShrinkTimeout !== null) {
+      clearTimeout(this.dropdownShrinkTimeout);
+      this.dropdownShrinkTimeout = null;
+    }
+
+    // Pin the notch window open while the dropdown is visible so auto-hide
+    // never tucks it away mid-search. Released when the dropdown closes.
+    this.ipc.setTimerWindowPinned(visible);
+
     if (visible) {
       // Expand immediately so animation is visible
       this.ipc.resizeTimerWindow(this.width(), targetHeight);
     } else {
       // Delay window shrink until CSS transition finishes
-      setTimeout(() => {
+      this.dropdownShrinkTimeout = setTimeout(() => {
+        this.dropdownShrinkTimeout = null;
         if (!this.isStopping() && !visible) {
           this.ipc.resizeTimerWindow(this.width(), 38);
+          this.ipc.setTimerWindowPinned(false);
         }
       }, 300);
     }
@@ -266,7 +285,9 @@ export class NotchTimerComponent {
   handleStop() {
     this.stopNote = '';
     this.isStopping.set(true);
-    
+    // Pin during stop-note entry so auto-hide doesn't collapse mid-typing.
+    this.ipc.setTimerWindowPinned(true);
+
     // Total height for timer row (38) + spacing (4) + note section (~150)
     const expandedHeight = 200;
     this.height.set(expandedHeight);
@@ -281,6 +302,7 @@ export class NotchTimerComponent {
   cancelStop() {
     this.isStopping.set(false);
     this.height.set(38);
+    this.ipc.setTimerWindowPinned(false);
     // Delay window shrink
     setTimeout(() => {
       if (!this.isStopping()) {
@@ -290,9 +312,13 @@ export class NotchTimerComponent {
   }
 
   async confirmStop() {
-    this.stop.emit(this.stopNote); // Pass the stop note to parent
+    // Unpin BEFORE emitting the parent stop, so by the time the parent's
+    // handler runs (which may call `hideTimerWindow`), the main process
+    // already sees the pin released.
     this.isStopping.set(false);
     this.height.set(38);
+    this.ipc.setTimerWindowPinned(false);
+    this.stop.emit(this.stopNote); // Pass the stop note to parent
     // Delay window shrink
     setTimeout(() => {
       if (!this.isStopping()) {

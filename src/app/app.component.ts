@@ -237,18 +237,22 @@ export class AppComponent {
       // 1. Stop current timer at idle start time
       await this.timerService.stop('', startTimeVal);
 
-      // 2. Create completed entry for assigned issue spanning the idle duration
-      const dateStr = new Date(startTimeVal).toISOString().slice(0, 10);
-      const startTimeStr = new Date(startTimeVal).toISOString().slice(11, 19);
-      const endTimeStr = new Date().toISOString().slice(11, 19);
-
-      await this.db.createTimeEntry({
-        issueId: assignedIssueId,
-        startTime: startTimeStr,
-        endTime: endTimeStr,
-        date: dateStr,
-        note: 'Idle time assignment',
-      });
+      // 2. Create completed entry for the assigned issue spanning the idle
+      //    duration. If the idle period crossed UTC midnight (e.g. user
+      //    walked away at 23:50 and came back at 00:10), splitting it into
+      //    one entry per UTC date keeps per-day stats honest — otherwise
+      //    the entry lands on the start date but its end timestamp is on
+      //    the next day.
+      const segments = this.splitRangeByUtcDay(startTimeVal, Date.now());
+      for (const seg of segments) {
+        await this.db.createTimeEntry({
+          issueId: assignedIssueId,
+          startTime: seg.startTime,
+          endTime: seg.endTime,
+          date: seg.date,
+          note: 'Idle time assignment',
+        });
+      }
 
       // 3. Start a new timer on the original issue now
       await this.timerService.start(originalIssueId);
@@ -260,6 +264,38 @@ export class AppComponent {
     this.showAssignDialog.set(false);
     this.selectedAssignedIssueId.set('');
     this.selectedAssignedIssueQuery.set('');
+  }
+
+  /** Split [startMs, endMs) into one segment per UTC calendar date so each
+   *  TimeEntry's `date` matches the day it actually occupies. All other
+   *  date math in the app uses toISOString() (UTC), so segments are split
+   *  on UTC midnight to stay consistent. Zero-length slices (e.g. when
+   *  endMs lands exactly on UTC midnight) are skipped — they would
+   *  produce an entry with start === end, which corrupts daily totals
+   *  and confuses Jira worklog sync. */
+  private splitRangeByUtcDay(
+    startMs: number,
+    endMs: number,
+  ): Array<{ date: string; startTime: string; endTime: string }> {
+    const segments: Array<{ date: string; startTime: string; endTime: string }> = [];
+    if (endMs <= startMs) return segments;
+    let cursor = new Date(startMs);
+    while (cursor.getTime() < endMs) {
+      const dayMidnight = new Date(
+        Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), 0, 0, 0, 0),
+      );
+      const nextMidnight = new Date(dayMidnight);
+      nextMidnight.setUTCDate(nextMidnight.getUTCDate() + 1);
+      const segmentEnd = Math.min(endMs, nextMidnight.getTime());
+      if (segmentEnd <= cursor.getTime()) break; // would be a zero-length entry
+      segments.push({
+        date: cursor.toISOString().slice(0, 10),
+        startTime: cursor.toISOString().slice(11, 19),
+        endTime: new Date(segmentEnd).toISOString().slice(11, 19),
+      });
+      cursor = new Date(segmentEnd);
+    }
+    return segments;
   }
 
   onCloseAssign(): void {

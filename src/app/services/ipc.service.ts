@@ -3,7 +3,7 @@ import type { Project } from '../models/project';
 import type { Issue } from '../models/issue';
 import type { TimeEntry } from '../models/time-entry';
 import type { JiraConnection } from '../models/jira-connection';
-import type { TimerState, IpcResponse, JiraIssue } from '../../types';
+import type { TimerState, IpcResponse, JiraIssue, DisplayInfo } from '../../types';
 import type { IssueCreate } from '../models/issue';
 
 @Injectable({ providedIn: 'root' })
@@ -306,6 +306,47 @@ export class IpcService {
 
   async createTimerWindow(mode: 'draggable' | 'notch'): Promise<IpcResponse> {
     return (await this.timerWindow?.create(mode)) ?? { success: false, error: 'Timer window API not available' };
+  }
+
+  /**
+   * Apply a timer-mode change to the currently open timer window.
+   * No-op if no timer window is open — toggling the setting in
+   * /settings won't pop the overlay unexpectedly.
+   */
+  async applyTimerMode(mode: 'draggable' | 'notch'): Promise<IpcResponse> {
+    return (await this.timerWindow?.applyMode(mode)) ?? { success: false, error: 'Timer window API not available' };
+  }
+
+  /**
+   * Tell the main process whether the notch should auto-hide (remote-desktop
+   * taskbar style). Safe to call when the notch window isn't open — main
+   * process stores the flag for the next time it creates the notch.
+   */
+  async applyNotchAutoHide(enabled: boolean): Promise<IpcResponse> {
+    return (await this.timerWindow?.applyNotchAutoHide(enabled)) ?? { success: false, error: 'Timer window API not available' };
+  }
+
+  /**
+   * Choose which display the notch appears on when multiple monitors are
+   * connected. Pass null for auto (follow the main window / primary).
+   */
+  async applyNotchDisplay(displayId: number | null): Promise<IpcResponse> {
+    return (await this.timerWindow?.applyNotchDisplay(displayId)) ?? { success: false, error: 'Timer window API not available' };
+  }
+
+  /** List connected displays so the renderer can offer a screen picker. */
+  async getDisplays(): Promise<DisplayInfo[]> {
+    const res: any = await window.electronAPI?.display?.getDisplays();
+    return res?.success ? (res.displays ?? []) : [];
+  }
+
+  /**
+   * Pin the notch window open (use during user-initiated interactions:
+   * dropdown open, stop-note entry, etc.), preventing auto-hide from
+   * collapsing it.
+   */
+  setTimerWindowPinned(pinned: boolean): void {
+    this.timerWindow?.setPinned(pinned);
   }
 
   async hideTimerWindow(): Promise<void> {

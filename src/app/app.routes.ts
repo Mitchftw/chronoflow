@@ -47,6 +47,14 @@ export const routes: Routes = [
     title: 'Timesheets',
   },
   {
+    path: 'vacation',
+    loadComponent: () =>
+      import('./pages/vacation/vacation.component').then(
+        (m) => m.VacationComponent,
+      ),
+    title: 'Vacation',
+  },
+  {
     path: 'timer-overlay',
     loadComponent: () =>
       import('./components/timer/timer-window.component').then(
