@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.9\n\n#### Fixes:\n- **Jira OAuth callback freeze:** the chronoflow:// callback could spawn a second app instance that hung on the locked database, freezing the app and preventing the connection from ever being saved. A heartbeat guard now makes duplicate instances exit immediately and hands the deep link to the running instance.\n- **Database hang protection:** DB initialization now uses a busy timeout and exits cleanly instead of hanging on a locked database.\n- **Visible save errors:** Jira connection save failures are now shown in the settings form and logged, instead of failing silently."
+      "releaseNotes": "### ChronoFlow v0.1.10\n\n#### New Features:\n- **Jira OAuth auto-save:** after authorizing in the browser, the connection is now saved automatically when your account has a single Jira site — no more missed \"Save Connection\" step that made the connection seem to disappear when navigating away.\n\n#### Fixes:\n- **Jira OAuth callback freeze:** the chronoflow:// callback could spawn a second app instance that hung on the locked database, freezing the app and preventing the connection from ever being saved. A heartbeat guard now makes duplicate instances exit immediately and hands the deep link to the running instance.\n- **Database hang protection:** DB initialization now uses a busy timeout and exits cleanly instead of hanging on a locked database.\n- **Visible save errors:** Jira connection save failures are now shown in the settings form and logged, instead of failing silently."
     }
   }
 }

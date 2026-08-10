@@ -1008,10 +1008,24 @@ export class SettingsComponent {
         this.onOauthResourceChange(resourceResult.resources[0].id);
       }
 
-      this.connectionTestResult.set({
-        success: true,
-        message: "Successfully authorized! Select your site and click Save.",
-      });
+      // With a single accessible site the connection is fully authorized at
+      // this point — save it right away. Requiring an extra "Save Connection"
+      // click is a step users routinely miss, leaving them with a connection
+      // that seems to "disappear" when they navigate away.
+      if (resourceResult.resources.length === 1) {
+        const saved = await this.saveConnection();
+        if (saved) {
+          this.connectionTestResult.set({
+            success: true,
+            message: "Jira connection added successfully.",
+          });
+        }
+      } else {
+        this.connectionTestResult.set({
+          success: true,
+          message: "Successfully authorized! Select your site and click Save.",
+        });
+      }
     } catch (err: any) {
       console.error(err);
       this.connectionTestResult.set({
@@ -1032,10 +1046,10 @@ export class SettingsComponent {
     }
   }
 
-  async saveConnection(): Promise<void> {
+  async saveConnection(): Promise<boolean> {
     const authType = this.formAuthType();
     const domain = this.formDomain().trim();
-    if (!domain) return;
+    if (!domain) return false;
 
     this.savingConnection.set(true);
     try {
@@ -1094,6 +1108,7 @@ export class SettingsComponent {
 
       this.resetConnectionForm();
       await this.jiraService.loadConnections();
+      return true;
     } catch (err) {
       // Surface the real error in the form instead of failing silently —
       // a swallowed failure used to look like the connection "disappeared".
@@ -1105,6 +1120,7 @@ export class SettingsComponent {
             ? err.message
             : "Failed to save connection. Check the app logs for details.",
       });
+      return false;
     } finally {
       this.savingConnection.set(false);
     }
