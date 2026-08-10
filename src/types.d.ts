@@ -92,6 +92,9 @@ export interface DisplayInfo {
 declare global {
   interface Window {
     electronAPI?: {
+      app: {
+        getVersion: () => Promise<string>;
+      };
       window: {
         minimize: () => Promise<void>;
         maximize: () => Promise<void>;

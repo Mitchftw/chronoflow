@@ -3,6 +3,10 @@ import { contextBridge, ipcRenderer } from "electron";
 declare const window: any;
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  app: {
+    getVersion: () => ipcRenderer.invoke("app:get-version"),
+  },
+
   window: {
     minimize: () => ipcRenderer.invoke("window:minimize"),
     maximize: () => ipcRenderer.invoke("window:maximize"),

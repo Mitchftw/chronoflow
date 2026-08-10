@@ -12,6 +12,10 @@ export class IpcService {
 
   // ── Namespace accessors ──
 
+  private get app() {
+    return window.electronAPI?.app;
+  }
+
   private get store() {
     return window.electronAPI?.store;
   }
@@ -34,6 +38,14 @@ export class IpcService {
 
   private get timerWindow() {
     return window.electronAPI?.timerWindow;
+  }
+
+  // ── App info ──
+
+  /** Installed app version (e.g. "0.1.7"). Empty string when not in Electron. */
+  async getAppVersion(): Promise<string> {
+    const v = await this.app?.getVersion();
+    return typeof v === 'string' ? v : '';
   }
 
   // ── Settings (store namespace) ──

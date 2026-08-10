@@ -771,7 +771,9 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             <span class="text-xs font-semibold text-muted-foreground/80"
               >Version</span
             >
-            <span class="text-xs font-bold text-foreground/95">0.1.0</span>
+            <span class="text-xs font-bold text-foreground/95">{{
+              appVersion() || "—"
+            }}</span>
           </div>
           <div
             class="flex items-center justify-between border-b border-border/20 pb-2"
@@ -812,8 +814,12 @@ export class SettingsComponent {
     return "";
   });
 
+  // Installed app version, loaded from the main process (About section).
+  readonly appVersion = signal("");
+
   constructor() {
     void this.loadDisplays();
+    void this.loadAppVersion();
   }
 
   readonly settings = this.settingsService.settings;
@@ -876,6 +882,14 @@ export class SettingsComponent {
       this.displays.set(await this.ipcService.getDisplays());
     } catch (err) {
       console.error("Failed to load displays", err);
+    }
+  }
+
+  async loadAppVersion(): Promise<void> {
+    try {
+      this.appVersion.set(await this.ipcService.getAppVersion());
+    } catch (err) {
+      console.error("Failed to load app version", err);
     }
   }
 

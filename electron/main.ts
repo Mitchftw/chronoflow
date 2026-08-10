@@ -117,6 +117,11 @@ function initAutoUpdater() {
 }
 
 function registerUpdaterHandlers() {
+  // Installed app version (from package.json) for the About section.
+  // `app.getVersion()` returns the version of the running build, so after
+  // an update is installed it reflects the new version.
+  ipcMain.handle("app:get-version", () => app.getVersion());
+
   ipcMain.handle("updater:check-for-updates", async () => {
     try {
       if (process.env['NODE_ENV'] === "development") {
