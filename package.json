@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.10\n\n#### New Features:\n- **Jira OAuth auto-save:** after authorizing in the browser, the connection is now saved automatically when your account has a single Jira site — no more missed \"Save Connection\" step that made the connection seem to disappear when navigating away.\n\n#### Fixes:\n- **Jira OAuth callback freeze:** the chronoflow:// callback could spawn a second app instance that hung on the locked database, freezing the app and preventing the connection from ever being saved. A heartbeat guard now makes duplicate instances exit immediately and hands the deep link to the running instance.\n- **Database hang protection:** DB initialization now uses a busy timeout and exits cleanly instead of hanging on a locked database.\n- **Visible save errors:** Jira connection save failures are now shown in the settings form and logged, instead of failing silently."
+      "releaseNotes": "### ChronoFlow v0.1.11\n\n#### New Features:\n- **Update notification toast:** a dismissible toast now pops up automatically whenever an update is available — and again once it is downloaded, with a Restart & Install button. No more digging into Settings to notice updates; it reappears on every launch and for new versions.\n- **New app icon:** the TimeTracker sidebar logo (rounded gradient square with a clock) is now used as the app icon — taskbar, window, installer and shortcuts.\n\n#### Fixes:\n- **Timer times stored in UTC instead of local time:** starting the timer at 09:03 showed a start time of 07:03 (a 2-hour offset). Timer start/end times, manual entries, 15-minute rounding and idle-time assignment now all use local wall-clock time, matching the rest of the app including Jira worklog sync.\n- **Editing a running entry's start time now updates the timer:** the running timer is recalibrated so the elapsed time matches the new start time, also when it starts before midnight."
     }
   }
 }

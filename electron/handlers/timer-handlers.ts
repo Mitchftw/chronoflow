@@ -27,6 +27,48 @@ let timerState: {
   pauseStart: null,
 };
 
+/** Format a Date as local wall-clock time HH:MM:SS (the DB convention). */
+function formatLocalTime(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/** Format a Date as a local calendar date YYYY-MM-DD (the DB convention). */
+function formatLocalDate(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** Convert a "HH:MM[:SS]" wall-clock string to ms since local midnight. */
+function parseWallClockToMs(time: string): number {
+  const [h = 0, m = 0, s = 0] = time.split(":").map(Number);
+  return h * 3600000 + m * 60000 + s * 1000;
+}
+
+/**
+ * Realign the in-memory timer so its elapsed time matches a (possibly
+ * edited) entry start time. Handles starts before local midnight by
+ * wrapping at 24h. Used when the running entry's start time is edited.
+ */
+function realignRunningTimer(startTime: string): void {
+  const now = new Date();
+  const nowWallMs =
+    now.getHours() * 3600000 +
+    now.getMinutes() * 60000 +
+    now.getSeconds() * 1000 +
+    now.getMilliseconds();
+  let elapsedMs = nowWallMs - parseWallClockToMs(startTime);
+  if (elapsedMs < 0) elapsedMs += 24 * 3600000; // started before midnight
+
+  const startTimestamp = Date.now() - elapsedMs;
+  if (timerState.isPaused) {
+    timerState.pausedElapsed = elapsedMs;
+  } else {
+    timerState.startTime = startTimestamp;
+  }
+  timerState.initialStartTime = startTimestamp;
+}
+
 /**
  * Notify all windows of current timer state via webContents.send
  */
@@ -99,14 +141,14 @@ export function registerTimerHandlers(
       }
 
       const now = Date.now();
-      const today = new Date().toISOString().slice(0, 10);
+      const today = formatLocalDate(new Date());
 
       // Create a new time entry
       const entryId = randomUUID();
       await dbService.createTimeEntry({
         id: entryId,
         issueId,
-        startTime: new Date(now).toISOString().slice(11, 19),
+        startTime: formatLocalTime(new Date(now)),
         endTime: null,
         date: today,
         note: '',
@@ -184,9 +226,9 @@ export function registerTimerHandlers(
       if (entryId) {
         // Close the time entry and set note if provided
         await dbService.updateTimeEntry(entryId, {
-          startTime: roundTo15Min ? new Date(roundedStart).toISOString().slice(11, 19) : undefined,
-          endTime: new Date(roundedEnd).toISOString().slice(11, 19),
-          date: roundTo15Min ? new Date(roundedStart).toISOString().slice(0, 10) : undefined,
+          startTime: roundTo15Min ? formatLocalTime(new Date(roundedStart)) : undefined,
+          endTime: formatLocalTime(new Date(roundedEnd)),
+          date: roundTo15Min ? formatLocalDate(new Date(roundedStart)) : undefined,
           ...(note !== undefined ? { note } : {}),
         });
       }
@@ -337,6 +379,16 @@ export function registerTimerHandlers(
   ipcMain.handle("timer:update-entry", async (_, { id, updates }) => {
     try {
       await dbService.updateTimeEntry(id, updates);
+      // If the running timer's entry start time is edited, realign the
+      // in-memory timer so elapsed and the stored start time stay in sync.
+      if (
+        timerState.isRunning &&
+        timerState.entryId === id &&
+        typeof updates.startTime === "string"
+      ) {
+        realignRunningTimer(updates.startTime);
+        broadcastTimerState(getTimerWindow(), getMainWindow());
+      }
       return { success: true };
     } catch (error: any) {
       logger.error("Failed to update time entry:", error);

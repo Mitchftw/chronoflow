@@ -139,12 +139,14 @@ export class IpcService {
   }
 
   async createTimeEntry(data: { issueId: string; startTime?: string; endTime?: string | null; date?: string; note?: string }): Promise<TimeEntry> {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
     const entry: TimeEntry = {
       id: crypto.randomUUID(),
       issueId: data.issueId,
-      startTime: data.startTime ?? new Date().toISOString().slice(11, 19),
+      startTime: data.startTime ?? `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
       endTime: data.endTime ?? null,
-      date: data.date ?? new Date().toISOString().slice(0, 10),
+      date: data.date ?? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
       note: data.note ?? '',
       jiraWorklogId: null,
       isDirty: true,

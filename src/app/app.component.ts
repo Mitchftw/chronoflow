@@ -11,6 +11,7 @@ import { UpdateService } from './services/update.service';
 import { IdlePromptComponent } from './components/common/idle-prompt.component';
 import { DialogComponent } from './components/common/dialog.component';
 import { SearchBarComponent, SearchResult } from './components/common/search-bar.component';
+import { UpdateToastComponent } from './components/common/update-toast.component';
 
 @Component({
   selector: 'app-root',
@@ -22,6 +23,7 @@ import { SearchBarComponent, SearchResult } from './components/common/search-bar
     IdlePromptComponent,
     DialogComponent,
     SearchBarComponent,
+    UpdateToastComponent,
   ],
   host: {
     class: 'flex h-screen flex-col text-foreground',
@@ -47,6 +49,9 @@ import { SearchBarComponent, SearchResult } from './components/common/search-bar
           <router-outlet />
         </main>
       </div>
+
+      <!-- Update notification toast -->
+      <app-update-toast />
 
       <!-- Idle prompt -->
       <app-idle-prompt
@@ -238,12 +243,12 @@ export class AppComponent {
       await this.timerService.stop('', startTimeVal);
 
       // 2. Create completed entry for the assigned issue spanning the idle
-      //    duration. If the idle period crossed UTC midnight (e.g. user
-      //    walked away at 23:50 and came back at 00:10), splitting it into
-      //    one entry per UTC date keeps per-day stats honest — otherwise
-      //    the entry lands on the start date but its end timestamp is on
-      //    the next day.
-      const segments = this.splitRangeByUtcDay(startTimeVal, Date.now());
+      //    duration. If the idle period crossed midnight (e.g. user walked
+      //    away at 23:50 and came back at 00:10), splitting it into one
+      //    entry per local date keeps per-day stats honest — otherwise the
+      //    entry lands on the start date but its end timestamp is on the
+      //    next day.
+      const segments = this.splitRangeByLocalDay(startTimeVal, Date.now());
       for (const seg of segments) {
         await this.db.createTimeEntry({
           issueId: assignedIssueId,
@@ -266,32 +271,33 @@ export class AppComponent {
     this.selectedAssignedIssueQuery.set('');
   }
 
-  /** Split [startMs, endMs) into one segment per UTC calendar date so each
-   *  TimeEntry's `date` matches the day it actually occupies. All other
-   *  date math in the app uses toISOString() (UTC), so segments are split
-   *  on UTC midnight to stay consistent. Zero-length slices (e.g. when
-   *  endMs lands exactly on UTC midnight) are skipped — they would
-   *  produce an entry with start === end, which corrupts daily totals
-   *  and confuses Jira worklog sync. */
-  private splitRangeByUtcDay(
+  /** Split [startMs, endMs) into one segment per local calendar date so
+   *  each TimeEntry's `date` matches the day it actually occupies. The app
+   *  stores wall-clock (local) times, so segments are split on local
+   *  midnight. Zero-length slices (e.g. when endMs lands exactly on
+   *  midnight) are skipped — they would produce an entry with start ===
+   *  end, which corrupts daily totals and confuses Jira worklog sync. */
+  private splitRangeByLocalDay(
     startMs: number,
     endMs: number,
   ): Array<{ date: string; startTime: string; endTime: string }> {
     const segments: Array<{ date: string; startTime: string; endTime: string }> = [];
     if (endMs <= startMs) return segments;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const toLocalDate = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const toLocalTime = (d: Date) =>
+      `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     let cursor = new Date(startMs);
     while (cursor.getTime() < endMs) {
-      const dayMidnight = new Date(
-        Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), 0, 0, 0, 0),
-      );
-      const nextMidnight = new Date(dayMidnight);
-      nextMidnight.setUTCDate(nextMidnight.getUTCDate() + 1);
+      const nextMidnight = new Date(cursor);
+      nextMidnight.setHours(24, 0, 0, 0);
       const segmentEnd = Math.min(endMs, nextMidnight.getTime());
       if (segmentEnd <= cursor.getTime()) break; // would be a zero-length entry
       segments.push({
-        date: cursor.toISOString().slice(0, 10),
-        startTime: cursor.toISOString().slice(11, 19),
-        endTime: new Date(segmentEnd).toISOString().slice(11, 19),
+        date: toLocalDate(cursor),
+        startTime: toLocalTime(cursor),
+        endTime: toLocalTime(new Date(segmentEnd)),
       });
       cursor = new Date(segmentEnd);
     }
