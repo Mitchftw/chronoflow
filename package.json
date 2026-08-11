@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.11\n\n#### New Features:\n- **Update notification toast:** a dismissible toast now pops up automatically whenever an update is available — and again once it is downloaded, with a Restart & Install button. No more digging into Settings to notice updates; it reappears on every launch and for new versions.\n- **New app icon:** the TimeTracker sidebar logo (rounded gradient square with a clock) is now used as the app icon — taskbar, window, installer and shortcuts.\n\n#### Fixes:\n- **Timer times stored in UTC instead of local time:** starting the timer at 09:03 showed a start time of 07:03 (a 2-hour offset). Timer start/end times, manual entries, 15-minute rounding and idle-time assignment now all use local wall-clock time, matching the rest of the app including Jira worklog sync.\n- **Editing a running entry's start time now updates the timer:** the running timer is recalibrated so the elapsed time matches the new start time, also when it starts before midnight."
+      "releaseNotes": "### ChronoFlow v0.1.12\n\n#### Fixes:\n- **Editing an entry without an end time (running timer) could not be saved:** when the entry's note was empty, the edit dialog crashed silently (\"Cannot read properties of null (reading 'trim')\") and closed without saving. The dialog now guards against null note/start/end values, so running entries can be edited again.\n- **Start time now snaps to 15 minutes when the snap setting is on:** picking a start (or end) time in the edit dialog rounds to the nearest quarter hour (e.g. 09:23 → 09:30), using the same rounding as the timer stop, and the running timer recalibrates to the snapped start."
     }
   }
 }
