@@ -429,6 +429,38 @@ export function registerTimerHandlers(
   );
 
   ipcMain.handle(
+    "timer:split-out-entry",
+    async (_, originalEntryId, fromTime, toTime, newIssueId) => {
+      try {
+        const result = await dbService.splitOutRange(
+          originalEntryId,
+          fromTime,
+          toTime,
+          newIssueId,
+        );
+        // If the running timer's entry was split, its remainder keeps
+        // running from the end of the split-out block.
+        if (
+          timerState.isRunning &&
+          timerState.entryId === originalEntryId &&
+          result.lastId
+        ) {
+          timerState.entryId = result.lastId;
+          realignRunningTimer(toTime);
+          broadcastTimerState(getTimerWindow(), getMainWindow());
+        }
+        return { success: true, data: result };
+      } catch (error: any) {
+        logger.error("Failed to split out time entry:", error);
+        return {
+          success: false,
+          error: error.message || "Failed to split out time entry",
+        };
+      }
+    },
+  );
+
+  ipcMain.handle(
     "timer:merge-entries",
     async (_, entryIds, noteStrategy, customNote) => {
       try {

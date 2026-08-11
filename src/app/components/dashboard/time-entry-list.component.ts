@@ -79,6 +79,18 @@ import type { Issue } from '../../models/issue';
                       </svg>
                     </button>
                     <button
+                      class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-primary/20 hover:text-primary transition-all duration-200 cursor-pointer"
+                      (click)="splitEntry.emit(entry)"
+                      title="Split entry (remove a block or cut at a point)"
+                      aria-label="Split entry"
+                    >
+                      <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <circle cx="6" cy="6" r="3" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.12 8.12L12 12m8-8L8.12 15.88M14.8 14.8L20 20" />
+                        <circle cx="6" cy="18" r="3" />
+                      </svg>
+                    </button>
+                    <button
                       class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-red-500/20 hover:text-red-500 transition-all duration-200 cursor-pointer"
                       (click)="deleteEntry.emit(entry.id)"
                       title="Delete entry"
@@ -104,6 +116,7 @@ export class TimeEntryListComponent {
 
   deleteEntry = output<string>();
   editEntry = output<TimeEntry>();
+  splitEntry = output<TimeEntry>();
   addManualEntry = output<void>();
 
   getIssueName(issueId: string): string {

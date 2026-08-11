@@ -72,6 +72,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
       newIssueId?: string,
     ) =>
       ipcRenderer.invoke("timer:split-entry", originalEntryId, splitTime, newIssueId),
+    splitOutEntry: (
+      originalEntryId: string,
+      fromTime: string,
+      toTime: string,
+      newIssueId?: string,
+    ) =>
+      ipcRenderer.invoke("timer:split-out-entry", originalEntryId, fromTime, toTime, newIssueId),
     mergeEntries: (
       entryIds: string[],
       noteStrategy: "concat" | "keep-first" | "keep-last" | "custom",

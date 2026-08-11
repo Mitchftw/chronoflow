@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.13\n\n#### Fixes:\n- **Manual time entries no longer snap to 15 minutes:** snapping now applies only to the timer start/stop, as intended. Manually entered start/end times are kept exactly as typed. (The 0.1.12 fix that made the edit dialog snap times is reverted; the null-note save fix from 0.1.12 remains.)"
+      "releaseNotes": "### ChronoFlow v0.1.14\n\n#### New Features:\n- **Split time entries:** a scissors icon on every entry opens a split dialog with two modes — cut the entry at a point (optionally moving the second part to another issue), or remove/move a whole block (e.g. cut out your lunch break, or move a meeting from 13:00–14:00 to another issue). Works on stopped and running entries; the timer keeps running from the end of the removed block.\n\n#### Critical Fixes:\n- **Fixed recurring data loss (the big one):** `INSERT OR REPLACE` on issues triggered SQLite's `ON DELETE CASCADE`, silently wiping every time entry of every existing issue on each issue sync (e.g. loading Jira data, creating an issue). Replaced with a proper upsert (`ON CONFLICT DO UPDATE`) — syncing now never destroys entries.\n- **Loading a different day no longer deletes other days:** same root cause as above; entries on all dates now survive Jira loads.\n- **Jira worklogs between 00:00–02:00 local time now load correctly:** the worklog query used UTC day boundaries; switched to local-day boundaries and raised per-issue pagination to 1000 results so nothing is silently missed."
     }
   }
 }

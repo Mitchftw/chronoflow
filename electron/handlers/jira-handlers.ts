@@ -399,12 +399,21 @@ export function registerJiraHandlers() {
         const issueSummary = issue.fields?.summary || issueKey;
 
         try {
+          // Jira reports worklog `started` in the user's local timezone, so
+          // the day range must use LOCAL midnight boundaries. Using UTC
+          // boundaries (e.g. `${date}T00:00:00Z`) silently dropped worklogs
+          // logged between 00:00 and 02:00 local time in UTC+2.
+          const [year, month, day] = date.split("-").map(Number);
+          const localStart = new Date(year, month - 1, day, 0, 0, 0, 0);
+          const localEnd = new Date(year, month - 1, day, 23, 59, 59, 999);
+
           const worklogResponse = await axios.get(
             `${baseUrl}/rest/api/3/issue/${issueKey}/worklog`,
             {
               params: {
-                startedAfter: new Date(`${date}T00:00:00Z`).getTime(),
-                startedBefore: new Date(`${date}T23:59:59Z`).getTime(),
+                startedAfter: localStart.getTime(),
+                startedBefore: localEnd.getTime(),
+                maxResults: 1000,
               },
               headers,
             },

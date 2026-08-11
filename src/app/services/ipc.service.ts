@@ -168,6 +168,14 @@ export class IpcService {
     if (!res?.success) throw new Error(res?.error ?? 'Failed to delete time entry');
   }
 
+  async splitTimeEntry(id: string, splitTime: string, newIssueId?: string): Promise<IpcResponse> {
+    return (await this.timer?.splitEntry(id, splitTime, newIssueId)) ?? { success: false, error: 'Timer API not available' };
+  }
+
+  async splitOutTimeEntry(id: string, fromTime: string, toTime: string, newIssueId?: string): Promise<IpcResponse> {
+    return (await this.timer?.splitOutEntry(id, fromTime, toTime, newIssueId)) ?? { success: false, error: 'Timer API not available' };
+  }
+
   // ── Jira ──
 
   async jiraSearch(query: string): Promise<JiraIssue[]> {

@@ -14,6 +14,7 @@ import {
 import { ActiveTimerCardComponent } from '../../components/dashboard/active-timer-card.component';
 import { TimeEntryListComponent } from '../../components/dashboard/time-entry-list.component';
 import { TimeEntryEditDialogComponent } from '../../components/dashboard/time-entry-edit-dialog.component';
+import { TimeEntrySplitDialogComponent } from '../../components/dashboard/time-entry-split-dialog.component';
 import type { Issue } from '../../models/issue';
 import type { TimeEntry } from '../../models/time-entry';
 import { type SearchResult } from '../../components/common/search-bar.component';
@@ -27,6 +28,7 @@ import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
     ActiveTimerCardComponent,
     TimeEntryListComponent,
     TimeEntryEditDialogComponent,
+    TimeEntrySplitDialogComponent,
   ],
   host: { class: 'block' },
   template: `
@@ -146,6 +148,7 @@ import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
       [issues]="db.issues()"
       (deleteEntry)="deleteEntry($event)"
       (editEntry)="openEditEntryDialog($event)"
+      (splitEntry)="openSplitEntryDialog($event)"
       (addManualEntry)="openCreateEntryDialog()"
     />
 
@@ -157,6 +160,14 @@ import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
       [issues]="db.issues()"
       (saved)="onEntrySaved($event)"
       (dismissed)="onEntryDismissed()"
+    />
+
+    <!-- Time Entry Split Dialog -->
+    <app-time-entry-split-dialog
+      [(isOpen)]="isSplitDialogOpen"
+      [entry]="selectedSplitEntry()"
+      [issues]="db.issues()"
+      (saved)="onSplitSaved()"
     />
 
     <!-- Loading overlay -->
@@ -182,6 +193,8 @@ export class DashboardComponent {
 
   isTimeEntryDialogOpen = signal(false);
   selectedTimeEntry = signal<TimeEntry | null>(null);
+  isSplitDialogOpen = signal(false);
+  selectedSplitEntry = signal<TimeEntry | null>(null);
   formattedDate = computed(() => format(this.selectedDate(), 'yyyy-MM-dd'));
   
   displayDate = computed(() => {
@@ -298,6 +311,15 @@ export class DashboardComponent {
   openCreateEntryDialog(): void {
     this.selectedTimeEntry.set(null);
     this.isTimeEntryDialogOpen.set(true);
+  }
+
+  openSplitEntryDialog(entry: TimeEntry): void {
+    this.selectedSplitEntry.set(entry);
+    this.isSplitDialogOpen.set(true);
+  }
+
+  onSplitSaved(): void {
+    this.db.reloadTimeEntries();
   }
 
   onEntrySaved(_entry: TimeEntry): void {

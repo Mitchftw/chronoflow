@@ -447,6 +447,103 @@ export async function splitTimeEntry(
   );
 }
 
+/**
+ * Cut a block [fromTime, toTime) out of a time entry.
+ *
+ * - The part before the block stays on the original entry.
+ * - The block itself is either removed entirely (lunch break / meeting) or,
+ *   when `newIssueId` is given, moved to that issue as its own entry.
+ * - The part after the block stays on the original issue (and remains the
+ *   running entry when the original was still running).
+ *
+ * Returns the ids of the (possibly created) parts: firstId always, movedId
+ * only when a new issue was given, lastId only when the entry continues.
+ */
+export async function splitOutRange(
+  originalEntryId: string,
+  fromTime: string,
+  toTime: string,
+  newIssueId?: string,
+): Promise<{ firstId: string; movedId: string | null; lastId: string | null }> {
+  const db = getDatabase();
+
+  const original = (await db.get(
+    "SELECT * FROM time_entries WHERE id = ?",
+    originalEntryId,
+  )) as any;
+  if (!original) throw new Error("Time entry not found");
+
+  const from = normalizeTime(fromTime) || fromTime;
+  const to = normalizeTime(toTime) || toTime;
+
+  if (from >= to) {
+    throw new Error("The split-out block must have an end after its start");
+  }
+  if (from <= original.start_time) {
+    throw new Error("The split-out block must start after the entry's start time");
+  }
+
+  if (original.end_time) {
+    if (to > original.end_time) {
+      throw new Error("The split-out block must end within the entry's time range");
+    }
+  } else {
+    // Running entry — the block must end before the current local time.
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    if (to >= nowTime) {
+      throw new Error("The split-out block must end before the current time");
+    }
+  }
+
+  const firstId = originalEntryId;
+  const movedId = newIssueId ? crypto.randomUUID() : null;
+  // A tail part only exists when the block does not run to the very end of
+  // the entry (or when the entry is still running).
+  const hasTail = original.end_time ? to < original.end_time : true;
+  const lastId = hasTail ? crypto.randomUUID() : null;
+
+  // Part 1: [start_time, from) — original entry, shortened.
+  await db.run(
+    "UPDATE time_entries SET end_time = ?, is_dirty = 1 WHERE id = ?",
+    from,
+    firstId,
+  );
+
+  // Part 2: [from, to) — moved to another issue, or removed entirely.
+  if (movedId) {
+    await db.run(
+      `INSERT INTO time_entries (id, issue_id, start_time, end_time, date, note, jira_worklog_id, is_dirty)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+      movedId,
+      newIssueId,
+      from,
+      to,
+      original.date,
+      original.note,
+      null,
+    );
+  }
+
+  // Part 3: [to, end_time) — keeps running when the original was running.
+  if (lastId) {
+    await db.run(
+      `INSERT INTO time_entries (id, issue_id, start_time, end_time, date, note, jira_worklog_id, is_dirty)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+      lastId,
+      original.issue_id,
+      to,
+      original.end_time,
+      original.date,
+      original.note,
+      null,
+    );
+  }
+
+  return { firstId, movedId, lastId };
+}
+
 export async function mergeTimeEntries(
   entryIds: string[],
   noteStrategy: "concat" | "keep-first" | "keep-last" | "custom",
@@ -732,9 +829,17 @@ export async function bulkInsertProjects(
 ): Promise<void> {
   const db = getDatabase();
   for (const project of projects) {
+    // Upsert, NOT INSERT OR REPLACE: REPLACE implicitly deletes the existing
+    // row, which triggers ON DELETE SET NULL on issues.project_id and would
+    // silently detach every issue from its project on each sync.
     await db.run(
-      `INSERT OR REPLACE INTO projects (id, name, description, color, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO projects (id, name, description, color, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         description = excluded.description,
+         color = excluded.color,
+         created_at = excluded.created_at`,
       project.id,
       project.name,
       project.description || null,
@@ -747,12 +852,29 @@ export async function bulkInsertProjects(
 export async function bulkInsertIssues(issues: Issue[]): Promise<void> {
   const db = getDatabase();
   for (const issue of issues) {
+    // Upsert, NOT INSERT OR REPLACE: REPLACE implicitly deletes the existing
+    // issue row, and time_entries has ON DELETE CASCADE on issue_id — so a
+    // plain sync would silently wipe every time entry of every existing
+    // issue. This was the root cause of the recurring data loss.
     await db.run(
-      `INSERT OR REPLACE INTO issues (
+      `INSERT INTO issues (
         id, title, description, project_id, status,
         jira_issue_key, jira_connection_id, estimate, time_spent,
         is_running, start_time, created_at, date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        description = excluded.description,
+        project_id = excluded.project_id,
+        status = excluded.status,
+        jira_issue_key = excluded.jira_issue_key,
+        jira_connection_id = excluded.jira_connection_id,
+        estimate = excluded.estimate,
+        time_spent = excluded.time_spent,
+        is_running = excluded.is_running,
+        start_time = excluded.start_time,
+        created_at = excluded.created_at,
+        date = excluded.date`,
       issue.id,
       issue.title,
       issue.description || null,

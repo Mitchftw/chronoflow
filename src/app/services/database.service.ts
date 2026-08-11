@@ -139,6 +139,20 @@ export class DatabaseService {
     this._timeEntries.update((list) => list.filter((e) => e.id !== id));
   }
 
+  /** Cut an entry at a point; the part after the cut can move to another issue. */
+  async splitTimeEntry(id: string, splitTime: string, newIssueId?: string): Promise<void> {
+    const res = await this.ipc.splitTimeEntry(id, splitTime, newIssueId);
+    if (!res.success) throw new Error(res.error ?? 'Failed to split time entry');
+    await this.reloadTimeEntries();
+  }
+
+  /** Cut a block [from, to] out of an entry, removing it or moving it to another issue. */
+  async splitOutTimeEntry(id: string, fromTime: string, toTime: string, newIssueId?: string): Promise<void> {
+    const res = await this.ipc.splitOutTimeEntry(id, fromTime, toTime, newIssueId);
+    if (!res.success) throw new Error(res.error ?? 'Failed to split time entry');
+    await this.reloadTimeEntries();
+  }
+
   // ── Jira ──
 
   async reloadJiraConnections(): Promise<void> {

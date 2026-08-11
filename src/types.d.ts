@@ -135,6 +135,7 @@ declare global {
         updateEntry: (id: string, updates: any) => Promise<IpcResponse>;
         deleteEntry: (id: string) => Promise<IpcResponse>;
         splitEntry: (id: string, splitTime: string, newIssueId?: string) => Promise<IpcResponse>;
+        splitOutEntry: (id: string, fromTime: string, toTime: string, newIssueId?: string) => Promise<IpcResponse>;
         mergeEntries: (ids: string[], strategy: string, note?: string) => Promise<IpcResponse>;
         getDeletedWorklogs: () => Promise<IpcResponse & { worklogs?: any[] }>;
         clearDeletedWorklog: (id: string) => Promise<IpcResponse>;
