@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.12\n\n#### Fixes:\n- **Editing an entry without an end time (running timer) could not be saved:** when the entry's note was empty, the edit dialog crashed silently (\"Cannot read properties of null (reading 'trim')\") and closed without saving. The dialog now guards against null note/start/end values, so running entries can be edited again.\n- **Start time now snaps to 15 minutes when the snap setting is on:** picking a start (or end) time in the edit dialog rounds to the nearest quarter hour (e.g. 09:23 → 09:30), using the same rounding as the timer stop, and the running timer recalibrates to the snapped start."
+      "releaseNotes": "### ChronoFlow v0.1.13\n\n#### Fixes:\n- **Manual time entries no longer snap to 15 minutes:** snapping now applies only to the timer start/stop, as intended. Manually entered start/end times are kept exactly as typed. (The 0.1.12 fix that made the edit dialog snap times is reverted; the null-note save fix from 0.1.12 remains.)"
     }
   }
 }

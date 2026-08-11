@@ -2,7 +2,6 @@ import { Component, ChangeDetectionStrategy, inject, input, output, signal, mode
 import { DialogComponent } from '../common/dialog.component';
 import { SearchBarComponent, type SearchResult } from '../common/search-bar.component';
 import { DatabaseService } from '../../services/database.service';
-import { SettingsService } from '../../services/settings.service';
 import type { TimeEntry } from '../../models/time-entry';
 import type { Issue } from '../../models/issue';
 
@@ -54,7 +53,6 @@ import type { Issue } from '../../models/issue';
               step="1"
               [value]="startTime()"
               (input)="startTime.set($any($event.target).value)"
-              (change)="onStartChange($any($event.target).value)"
               class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
             />
           </div>
@@ -70,7 +68,6 @@ import type { Issue } from '../../models/issue';
               step="1"
               [value]="endTime()"
               (input)="endTime.set($any($event.target).value)"
-              (change)="onEndChange($any($event.target).value)"
               class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
             />
           </div>
@@ -96,7 +93,6 @@ import type { Issue } from '../../models/issue';
 })
 export class TimeEntryEditDialogComponent {
   private readonly db = inject(DatabaseService);
-  private readonly settings = inject(SettingsService);
 
   /** Open state */
   readonly isOpen = model(false);
@@ -243,32 +239,6 @@ export class TimeEntryEditDialogComponent {
     } finally {
       this.isOpen.set(false);
     }
-  }
-
-  /** Snap a "HH:MM[:SS]" wall-clock time to the nearest 15 minutes (mirrors the timer stop rounding). */
-  private snapTimeToQuarter(time: string): string {
-    const [h = 0, m = 0, s = 0] = time.split(':').map(Number);
-    const ms = h * 3600000 + m * 60000 + s * 1000;
-    const snapped = Math.round(ms / 900000) * 900000;
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const hours = Math.floor(snapped / 3600000) % 24;
-    const minutes = Math.floor((snapped % 3600000) / 60000);
-    const seconds = Math.floor((snapped % 60000) / 1000);
-    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-  }
-
-  /** Committed start time — snapped to 15 minutes when the setting is on. */
-  onStartChange(value: string): void {
-    let v = value ?? '';
-    if (v && this.settings.settings().roundTo15Min) v = this.snapTimeToQuarter(v);
-    this.startTime.set(v);
-  }
-
-  /** Committed end time — snapped to 15 minutes when the setting is on. */
-  onEndChange(value: string): void {
-    let v = value ?? '';
-    if (v && this.settings.settings().roundTo15Min) v = this.snapTimeToQuarter(v);
-    this.endTime.set(v);
   }
 
   onClose(): void {
