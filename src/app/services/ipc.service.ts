@@ -292,6 +292,10 @@ export class IpcService {
     return (await this.timer?.resume()) ?? { success: false, error: 'Timer API not available' };
   }
 
+  async resumeTimeEntry(entryId: string): Promise<IpcResponse> {
+    return (await this.timer?.resumeEntry(entryId)) ?? { success: false, error: 'Timer API not available' };
+  }
+
   async getTimerState(): Promise<TimerState | null> {
     const res = await this.timer?.getState();
     return res?.success ? (res.data ?? null) : null;

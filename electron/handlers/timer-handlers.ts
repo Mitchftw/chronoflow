@@ -70,6 +70,79 @@ function realignRunningTimer(startTime: string): void {
 }
 
 /**
+ * Recover an interrupted timer session on startup. If the most recent entry
+ * never got an end time (the app quit or crashed while the timer was
+ * running), adopt it as the running timer and keep counting from its
+ * original start time.
+ */
+export async function restoreRunningTimerFromDb(): Promise<void> {
+  try {
+    if (timerState.isRunning) return;
+    const entry = await dbService.getLatestOpenEntry();
+    if (!entry) return;
+
+    const result = await resumeOpenEntry(entry.id);
+    if (result.success) {
+      logger.info(
+        `Restored running timer: entry ${entry.id} started ${entry.startTime}`,
+      );
+    }
+  } catch (error: any) {
+    logger.error("Failed to restore running timer:", error);
+  }
+}
+
+/**
+ * Adopt an open (endless) entry as the running timer, continuing from its
+ * original start time. Shared by the startup restore and timer:resume-entry.
+ */
+export async function resumeOpenEntry(
+  entryId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const entry = await dbService.getTimeEntry(entryId);
+    if (!entry) return { success: false, error: "Time entry not found" };
+    if (entry.endTime) {
+      return { success: false, error: "This entry already has an end time." };
+    }
+    if (timerState.isRunning && !timerState.isPaused) {
+      return {
+        success: false,
+        error: "A timer is already running. Stop it first.",
+      };
+    }
+
+    timerState = {
+      issueId: entry.issueId,
+      entryId: entry.id,
+      startTime: null,
+      initialStartTime: null,
+      isRunning: true,
+      isPaused: false,
+      pausedElapsed: 0,
+      pauseStart: null,
+    };
+    realignRunningTimer(entry.startTime);
+
+    const issue = await dbService.getIssue(entry.issueId);
+    if (issue) {
+      await dbService.updateIssue(entry.issueId, {
+        isRunning: true,
+        startTime: timerState.startTime ?? Date.now(),
+      });
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    logger.error("Failed to resume time entry:", error);
+    return {
+      success: false,
+      error: error.message || "Failed to resume time entry",
+    };
+  }
+}
+
+/**
  * Notify all windows of current timer state via webContents.send
  */
 export function broadcastTimerState(timerWindow: BrowserWindow | null, mainWindow: BrowserWindow | null) {
@@ -101,7 +174,7 @@ function getTimerStateElapsed(atTime?: number): number {
   return Math.floor(elapsed / 1000);
 }
 
-function getTimerState() {
+export function getTimerState() {
   return {
     isRunning: timerState.isRunning,
     isPaused: timerState.isPaused,
@@ -332,6 +405,19 @@ export function registerTimerHandlers(
         error: error.message || "Failed to resume timer",
       };
     }
+  });
+
+  // Resume timing on an existing open (endless) entry — e.g. an entry that
+  // was left running when the app quit, or a manual entry without an end
+  // time. The timer keeps counting from the entry's original start time.
+  ipcMain.handle("timer:resume-entry", async (_, entryId: string) => {
+    const result = await resumeOpenEntry(entryId);
+    if (result.success) {
+      broadcastTimerState(getTimerWindow(), getMainWindow());
+      logger.info(`Timer resumed on entry: ${entryId}`);
+      return { success: true, data: getTimerState() };
+    }
+    return result;
   });
 
   // Get current timer state

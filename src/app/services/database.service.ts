@@ -139,6 +139,13 @@ export class DatabaseService {
     this._timeEntries.update((list) => list.filter((e) => e.id !== id));
   }
 
+  /** Resume timing on an open (endless) entry, continuing from its start time. */
+  async resumeTimeEntry(id: string): Promise<void> {
+    const res = await this.ipc.resumeTimeEntry(id);
+    if (!res.success) throw new Error(res.error ?? 'Failed to resume time entry');
+    await this.reloadTimeEntries();
+  }
+
   /** Cut an entry at a point; the part after the cut can move to another issue. */
   async splitTimeEntry(id: string, splitTime: string, newIssueId?: string): Promise<void> {
     const res = await this.ipc.splitTimeEntry(id, splitTime, newIssueId);

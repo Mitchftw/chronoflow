@@ -128,6 +128,7 @@ declare global {
         stop: (note?: string, stopTime?: number) => Promise<IpcResponse>;
         pause: () => Promise<IpcResponse>;
         resume: () => Promise<IpcResponse>;
+        resumeEntry: (entryId: string) => Promise<IpcResponse>;
         getState: () => Promise<IpcResponse>;
         getElapsed: () => Promise<IpcResponse<number>>;
         getEntries: (filters?: any) => Promise<IpcResponse>;

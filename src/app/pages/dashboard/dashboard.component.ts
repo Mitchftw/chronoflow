@@ -146,9 +146,11 @@ import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
     <app-time-entry-list
       [entries]="selectedDateEntries()"
       [issues]="db.issues()"
+      [timerRunning]="timer.isRunning()"
       (deleteEntry)="deleteEntry($event)"
       (editEntry)="openEditEntryDialog($event)"
       (splitEntry)="openSplitEntryDialog($event)"
+      (resumeEntry)="resumeEntry($event)"
       (addManualEntry)="openCreateEntryDialog()"
     />
 
@@ -320,6 +322,15 @@ export class DashboardComponent {
 
   onSplitSaved(): void {
     this.db.reloadTimeEntries();
+  }
+
+  async resumeEntry(entry: TimeEntry): Promise<void> {
+    this.errorMessage.set(null);
+    try {
+      await this.db.resumeTimeEntry(entry.id);
+    } catch (err: any) {
+      this.errorMessage.set(err?.message ?? 'Failed to resume the entry');
+    }
   }
 
   onEntrySaved(_entry: TimeEntry): void {

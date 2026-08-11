@@ -18,7 +18,7 @@ import * as db from "./db-service";
 import { logger } from "./utils/logger";
 import { registerJiraHandlers } from "./handlers/jira-handlers";
 import { registerStoreHandlers } from "./handlers/store-handlers";
-import { registerTimerHandlers, broadcastTimerState } from "./handlers/timer-handlers";
+import { registerTimerHandlers, broadcastTimerState, restoreRunningTimerFromDb } from "./handlers/timer-handlers";
 import { registerWindowHandlers } from "./handlers/window-handlers";
 import { registerIdleHandlers } from "./handlers/idle-handlers";
 
@@ -846,6 +846,10 @@ app.whenReady().then(async () => {
   } catch (err) {
     logger.error("Failed to prime auto-hide from settings:", err);
   }
+
+  // If a timer was left running when the app quit, adopt it as the running
+  // timer before the renderer loads (it queries timer:get-state on startup).
+  await restoreRunningTimerFromDb();
 
   // Register all IPC handlers
   registerWindowHandlers(() => mainWindow);

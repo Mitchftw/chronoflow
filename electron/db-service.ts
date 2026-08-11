@@ -313,6 +313,47 @@ export async function getTimeEntries(filters?: {
   }));
 }
 
+export async function getTimeEntry(id: string): Promise<TimeEntry | null> {
+  const db = getDatabase();
+  const row = await db.get("SELECT * FROM time_entries WHERE id = ?", id);
+  if (!row) return null;
+  const r = row as any;
+  return {
+    id: r.id,
+    issueId: r.issue_id,
+    startTime: r.start_time,
+    endTime: r.end_time,
+    date: r.date,
+    note: r.note,
+    jiraWorklogId: r.jira_worklog_id,
+    isDirty: r.is_dirty === 1,
+  };
+}
+
+/**
+ * The most recent entry that never got an end time (timer left running when
+ * the app quit, or an endless manual entry). Used to restore the timer state
+ * on startup.
+ */
+export async function getLatestOpenEntry(): Promise<TimeEntry | null> {
+  const db = getDatabase();
+  const row = await db.get(
+    "SELECT * FROM time_entries WHERE end_time IS NULL ORDER BY date DESC, start_time DESC LIMIT 1",
+  );
+  if (!row) return null;
+  const r = row as any;
+  return {
+    id: r.id,
+    issueId: r.issue_id,
+    startTime: r.start_time,
+    endTime: r.end_time,
+    date: r.date,
+    note: r.note,
+    jiraWorklogId: r.jira_worklog_id,
+    isDirty: r.is_dirty === 1,
+  };
+}
+
 export async function createTimeEntry(entry: TimeEntry): Promise<void> {
   const db = getDatabase();
   const isDirty = entry.isDirty !== undefined ? entry.isDirty : (entry.jiraWorklogId ? false : true);

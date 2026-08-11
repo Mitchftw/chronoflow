@@ -68,6 +68,19 @@ import type { Issue } from '../../models/issue';
                     {{ entry.note || '—' }}
                   </td>
                   <td class="px-5 py-4 text-right flex justify-end gap-1">
+                    @if (!entry.endTime) {
+                      <button
+                        class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-emerald-500/20 hover:text-emerald-500 transition-all duration-200 cursor-pointer disabled:opacity-35 disabled:pointer-events-none"
+                        (click)="resumeEntry.emit(entry)"
+                        [disabled]="timerRunning()"
+                        title="Resume this running entry"
+                        aria-label="Resume entry"
+                      >
+                        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M8 5.14v14l11-7-11-7z" />
+                        </svg>
+                      </button>
+                    }
                     <button
                       class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-primary/20 hover:text-primary transition-all duration-200 cursor-pointer"
                       (click)="editEntry.emit(entry)"
@@ -113,10 +126,13 @@ import type { Issue } from '../../models/issue';
 export class TimeEntryListComponent {
   entries = input.required<TimeEntry[]>();
   issues = input<Issue[]>([]);
+  /** Disables the resume button while another timer is running. */
+  timerRunning = input(false);
 
   deleteEntry = output<string>();
   editEntry = output<TimeEntry>();
   splitEntry = output<TimeEntry>();
+  resumeEntry = output<TimeEntry>();
   addManualEntry = output<void>();
 
   getIssueName(issueId: string): string {
