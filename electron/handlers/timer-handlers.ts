@@ -500,9 +500,9 @@ export function registerTimerHandlers(
 
   ipcMain.handle(
     "timer:split-entry",
-    async (_, originalEntryId, splitTime, newIssueId) => {
+    async (_, originalEntryId, splitTime, newIssueId, newNote) => {
       try {
-        await dbService.splitTimeEntry(originalEntryId, splitTime, newIssueId);
+        await dbService.splitTimeEntry(originalEntryId, splitTime, newIssueId, newNote);
         return { success: true };
       } catch (error: any) {
         logger.error("Failed to split time entry:", error);
@@ -516,13 +516,14 @@ export function registerTimerHandlers(
 
   ipcMain.handle(
     "timer:split-out-entry",
-    async (_, originalEntryId, fromTime, toTime, newIssueId) => {
+    async (_, originalEntryId, fromTime, toTime, newIssueId, newNote) => {
       try {
         const result = await dbService.splitOutRange(
           originalEntryId,
           fromTime,
           toTime,
           newIssueId,
+          newNote,
         );
         // If the running timer's entry was split, its remainder keeps
         // running from the end of the split-out block.

@@ -21,11 +21,11 @@ function toMinutes(time: string): number {
   return h * 60 + m + (s ? s / 60 : 0);
 }
 
-/** minutes since midnight → "HH:MM:00" wall-clock string. */
+/** minutes since midnight → "HH:MM" wall-clock string. */
 function fmtTime(minutes: number): string {
   const total = Math.max(0, Math.floor(minutes)) % (24 * 60);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}:00`;
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
 }
 
 @Component({
@@ -86,7 +86,7 @@ function fmtTime(minutes: number): string {
               <input
                 id="split-from"
                 type="time"
-                step="1"
+                step="60"
                 [value]="fromTime()"
                 (input)="fromTime.set($any($event.target).value)"
                 class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
@@ -99,7 +99,7 @@ function fmtTime(minutes: number): string {
               <input
                 id="split-to"
                 type="time"
-                step="1"
+                step="60"
                 [value]="toTime()"
                 (input)="toTime.set($any($event.target).value)"
                 class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
@@ -117,7 +117,7 @@ function fmtTime(minutes: number): string {
             <input
               id="split-at"
               type="time"
-              step="1"
+              step="60"
               [value]="splitAtTime()"
               (input)="splitAtTime.set($any($event.target).value)"
               class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
@@ -160,6 +160,25 @@ function fmtTime(minutes: number): string {
           <p class="mt-1.5 text-xs text-muted-foreground/60">{{ targetHint() }}</p>
         </div>
 
+        @if (selectedIssueId()) {
+          <div>
+            <label for="split-note" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+              Comment for the {{ mode() === 'range' ? 'moved block' : 'moved part' }}
+            </label>
+            <textarea
+              id="split-note"
+              [value]="note()"
+              (input)="note.set($any($event.target).value)"
+              placeholder="Add description..."
+              rows="3"
+              class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner resize-none"
+            ></textarea>
+            <p class="mt-1 text-xs text-muted-foreground/60">
+              Defaults to the original entry's comment; adjust it for the other issue.
+            </p>
+          </div>
+        }
+
         @if (errorMessage()) {
           <div class="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-2.5 text-xs text-destructive-foreground">
             {{ errorMessage() }}
@@ -190,6 +209,7 @@ export class TimeEntrySplitDialogComponent {
   readonly splitAtTime = signal('');
   readonly selectedIssueId = signal('');
   readonly selectedIssueQuery = signal('');
+  readonly note = signal('');
   readonly errorMessage = signal('');
 
   /** The entry's effective end: stored end, or "now" while it is running. */
@@ -244,12 +264,15 @@ export class TimeEntrySplitDialogComponent {
   readonly isValid = computed(() => {
     const e = this.entry();
     if (!e) return false;
-    const start = e.startTime;
-    const end = this.effectiveEnd();
+    // Compare at minute precision (inputs are HH:MM, stored times HH:MM:SS).
+    const start = (e.startTime || '').slice(0, 5);
+    const end = (this.effectiveEnd() || '').slice(0, 5);
     if (this.mode() === 'range') {
       const from = this.fromTime();
       const to = this.toTime();
-      return !!from && !!to && from > start && from < to && to <= end;
+      // `from` may equal the entry's start: cutting [start, to) out leaves
+      // a single entry [to, end] (e.g. "first hour was a meeting").
+      return !!from && !!to && from >= start && from < to && to <= end;
     }
     const at = this.splitAtTime();
     return !!at && at > start && at < end;
@@ -279,6 +302,7 @@ export class TimeEntrySplitDialogComponent {
     this.splitAtTime.set(fmtTime(startMin + Math.floor(dur / 2)));
     this.selectedIssueId.set('');
     this.selectedIssueQuery.set('');
+    this.note.set(e.note ?? '');
     this.errorMessage.set('');
   }
 
@@ -329,9 +353,9 @@ export class TimeEntrySplitDialogComponent {
     this.errorMessage.set('');
     try {
       if (this.mode() === 'range') {
-        await this.db.splitOutTimeEntry(e.id, this.fromTime(), this.toTime(), target);
+        await this.db.splitOutTimeEntry(e.id, this.fromTime(), this.toTime(), target, this.note());
       } else {
-        await this.db.splitTimeEntry(e.id, this.splitAtTime(), target);
+        await this.db.splitTimeEntry(e.id, this.splitAtTime(), target, this.note());
       }
       this.saved.emit();
       this.isOpen.set(false);

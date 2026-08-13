@@ -55,7 +55,10 @@ import type { Issue } from '../../models/issue';
             </thead>
             <tbody class="divide-y divide-border/30">
               @for (entry of entries(); track entry.id) {
-                <tr class="transition-colors hover:bg-secondary/45 text-foreground/90">
+                <tr
+                  class="transition-colors hover:bg-secondary/45 text-foreground/90"
+                  [class]="isActiveEntry(entry) ? 'bg-primary/[0.05]' : ''"
+                >
                   <td class="px-5 py-4 text-sm font-semibold text-foreground/95">
                     {{ getIssueName(entry.issueId) }}
                   </td>
@@ -68,19 +71,26 @@ import type { Issue } from '../../models/issue';
                     {{ entry.note || '—' }}
                   </td>
                   <td class="px-5 py-4 text-right flex justify-end gap-1">
-                    @if (!entry.endTime) {
-                      <button
-                        class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-emerald-500/20 hover:text-emerald-500 transition-all duration-200 cursor-pointer disabled:opacity-35 disabled:pointer-events-none"
-                        (click)="resumeEntry.emit(entry)"
-                        [disabled]="timerRunning()"
-                        title="Resume this running entry"
-                        aria-label="Resume entry"
-                      >
-                        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M8 5.14v14l11-7-11-7z" />
+                    <!-- Same play/running button as the issue cards: a filled
+                         play triangle, or a pulsing dot on the entry that is
+                         currently being tracked. -->
+                    <button
+                      class="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/50 text-muted-foreground/80 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+                      [class]="isActiveEntry(entry)
+                        ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25'
+                        : 'hover:border-primary hover:text-primary'"
+                      (click)="resumeEntry.emit(entry)"
+                      [attr.aria-label]="isActiveEntry(entry) ? 'Timer active' : (entry.endTime ? 'Start timer' : 'Resume entry')"
+                      [title]="isActiveEntry(entry) ? 'Timer running' : (entry.endTime ? 'Start timer on this issue' : 'Resume this entry')"
+                    >
+                      @if (isActiveEntry(entry)) {
+                        <span class="flex size-2 rounded-full bg-white animate-pulse"></span>
+                      } @else {
+                        <svg class="size-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
                         </svg>
-                      </button>
-                    }
+                      }
+                    </button>
                     <button
                       class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-primary/20 hover:text-primary transition-all duration-200 cursor-pointer"
                       (click)="editEntry.emit(entry)"
@@ -126,8 +136,8 @@ import type { Issue } from '../../models/issue';
 export class TimeEntryListComponent {
   entries = input.required<TimeEntry[]>();
   issues = input<Issue[]>([]);
-  /** Disables the resume button while another timer is running. */
-  timerRunning = input(false);
+  /** Id of the entry the timer is currently tracking (from the timer state). */
+  activeEntryId = input<string | null>(null);
 
   deleteEntry = output<string>();
   editEntry = output<TimeEntry>();
@@ -139,6 +149,11 @@ export class TimeEntryListComponent {
     const issue = this.issues().find((i) => i.id === issueId);
     if (!issue) return issueId.slice(0, 8);
     return issue.jiraIssueKey ? `${issue.jiraIssueKey} ${issue.title}` : issue.title;
+  }
+
+  /** Whether this open entry is the one currently being tracked. */
+  isActiveEntry(entry: TimeEntry): boolean {
+    return !entry.endTime && entry.id === this.activeEntryId();
   }
 
   formatDuration(entry: TimeEntry): string {

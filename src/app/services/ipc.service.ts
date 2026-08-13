@@ -48,6 +48,12 @@ export class IpcService {
     return typeof v === 'string' ? v : '';
   }
 
+  /** Whether this is a dev build (running from source). */
+  async getIsDev(): Promise<boolean> {
+    const d = await this.app?.isDev();
+    return d === true;
+  }
+
   // ── Settings (store namespace) ──
 
   async getSettings(): Promise<Record<string, unknown>> {
@@ -168,12 +174,12 @@ export class IpcService {
     if (!res?.success) throw new Error(res?.error ?? 'Failed to delete time entry');
   }
 
-  async splitTimeEntry(id: string, splitTime: string, newIssueId?: string): Promise<IpcResponse> {
-    return (await this.timer?.splitEntry(id, splitTime, newIssueId)) ?? { success: false, error: 'Timer API not available' };
+  async splitTimeEntry(id: string, splitTime: string, newIssueId?: string, newNote?: string): Promise<IpcResponse> {
+    return (await this.timer?.splitEntry(id, splitTime, newIssueId, newNote)) ?? { success: false, error: 'Timer API not available' };
   }
 
-  async splitOutTimeEntry(id: string, fromTime: string, toTime: string, newIssueId?: string): Promise<IpcResponse> {
-    return (await this.timer?.splitOutEntry(id, fromTime, toTime, newIssueId)) ?? { success: false, error: 'Timer API not available' };
+  async splitOutTimeEntry(id: string, fromTime: string, toTime: string, newIssueId?: string, newNote?: string): Promise<IpcResponse> {
+    return (await this.timer?.splitOutEntry(id, fromTime, toTime, newIssueId, newNote)) ?? { success: false, error: 'Timer API not available' };
   }
 
   // ── Jira ──

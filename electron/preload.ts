@@ -5,6 +5,7 @@ declare const window: any;
 contextBridge.exposeInMainWorld("electronAPI", {
   app: {
     getVersion: () => ipcRenderer.invoke("app:get-version"),
+    isDev: () => ipcRenderer.invoke("app:is-dev"),
   },
 
   window: {
@@ -72,15 +73,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
       originalEntryId: string,
       splitTime: string,
       newIssueId?: string,
+      newNote?: string,
     ) =>
-      ipcRenderer.invoke("timer:split-entry", originalEntryId, splitTime, newIssueId),
+      ipcRenderer.invoke("timer:split-entry", originalEntryId, splitTime, newIssueId, newNote),
     splitOutEntry: (
       originalEntryId: string,
       fromTime: string,
       toTime: string,
       newIssueId?: string,
+      newNote?: string,
     ) =>
-      ipcRenderer.invoke("timer:split-out-entry", originalEntryId, fromTime, toTime, newIssueId),
+      ipcRenderer.invoke("timer:split-out-entry", originalEntryId, fromTime, toTime, newIssueId, newNote),
     mergeEntries: (
       entryIds: string[],
       noteStrategy: "concat" | "keep-first" | "keep-last" | "custom",

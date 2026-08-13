@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
 import { IpcService } from '../../services/ipc.service';
 import { SettingsService } from '../../services/settings.service';
 import { TimerService } from '../../services/timer.service';
@@ -14,6 +14,14 @@ import { TimerService } from '../../services/timer.service';
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <span class="text-[10px] font-bold tracking-widest uppercase font-sans">ChronoFlow</span>
+        @if (isDev()) {
+          <span
+            class="ml-2 rounded-md border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-500"
+            title="Dev build — uses an isolated database (ChronoFlow-Dev)"
+          >
+            DEV
+          </span>
+        }
       </div>
     </div>
     <div class="flex items-center h-full no-drag">
@@ -54,6 +62,11 @@ export class TitleBarComponent {
   readonly ipc = inject(IpcService);
   private settings = inject(SettingsService);
   private timer = inject(TimerService);
+  readonly isDev = signal(false);
+
+  constructor() {
+    this.ipc.getIsDev().then((dev) => this.isDev.set(dev));
+  }
 
   async handleMinimize(): Promise<void> {
     // Create the always-on-top timer overlay

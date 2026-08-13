@@ -50,7 +50,7 @@ import type { Issue } from '../../models/issue';
             <input
               id="edit-start-time"
               type="time"
-              step="1"
+              step="60"
               [value]="startTime()"
               (input)="startTime.set($any($event.target).value)"
               class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
@@ -65,7 +65,7 @@ import type { Issue } from '../../models/issue';
             <input
               id="edit-end-time"
               type="time"
-              step="1"
+              step="60"
               [value]="endTime()"
               (input)="endTime.set($any($event.target).value)"
               class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
@@ -119,6 +119,13 @@ export class TimeEntryEditDialogComponent {
   readonly selectedIssueId = signal('');
   readonly selectedIssueQuery = signal('');
 
+  /** Strip seconds from a "HH:MM[:SS]" time so manual editing stays at minute precision. */
+  private toHm(time: string | null | undefined): string {
+    if (!time) return '';
+    const [h, m] = time.split(':');
+    return h && m ? `${h}:${m}` : time;
+  }
+
   /** Display Name for associated issue (in edit mode) */
   readonly issueName = computed(() => {
     const activeEntry = this.entry();
@@ -144,8 +151,8 @@ export class TimeEntryEditDialogComponent {
     effect(() => {
       const activeEntry = this.entry();
       if (activeEntry) {
-        this.startTime.set(activeEntry.startTime ?? '');
-        this.endTime.set(activeEntry.endTime ?? '');
+        this.startTime.set(this.toHm(activeEntry.startTime));
+        this.endTime.set(this.toHm(activeEntry.endTime));
         this.note.set(activeEntry.note ?? '');
       }
     });
@@ -155,7 +162,7 @@ export class TimeEntryEditDialogComponent {
       if (this.isOpen() && !this.entry()) {
         const now = new Date();
         const pad = (n: number) => String(n).padStart(2, '0');
-        const defaultStart = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        const defaultStart = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
         this.startTime.set(defaultStart);
         this.endTime.set('');
         this.note.set('');

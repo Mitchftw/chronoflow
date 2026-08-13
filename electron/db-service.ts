@@ -425,23 +425,30 @@ export async function updateTimeEntry(
   );
 }
 
+/** Queue an entry's existing Jira worklog for deletion on the next sync. */
+async function queueWorklogDeletion(db: any, entry: any): Promise<void> {
+  if (!entry?.jira_worklog_id) return;
+  const issue = await db.get(
+    "SELECT jira_issue_key, jira_connection_id FROM issues WHERE id = ?",
+    entry.issue_id,
+  );
+  if (issue && issue.jira_issue_key) {
+    await db.run(
+      `INSERT INTO deleted_jira_worklogs (id, jira_worklog_id, jira_connection_id, issue_key, deleted_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      randomUUID(),
+      entry.jira_worklog_id,
+      issue.jira_connection_id || null,
+      issue.jira_issue_key,
+      Date.now(),
+    );
+  }
+}
+
 export async function deleteTimeEntry(id: string): Promise<void> {
   const db = getDatabase();
   const entry = await db.get("SELECT * FROM time_entries WHERE id = ?", id);
-  if (entry && entry.jira_worklog_id) {
-    const issue = await db.get("SELECT jira_issue_key, jira_connection_id FROM issues WHERE id = ?", entry.issue_id);
-    if (issue && issue.jira_issue_key) {
-      await db.run(
-        `INSERT INTO deleted_jira_worklogs (id, jira_worklog_id, jira_connection_id, issue_key, deleted_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        randomUUID(),
-        entry.jira_worklog_id,
-        issue.jira_connection_id || null,
-        issue.jira_issue_key,
-        Date.now(),
-      );
-    }
-  }
+  await queueWorklogDeletion(db, entry);
   await db.run("DELETE FROM time_entries WHERE id = ?", id);
 }
 
@@ -449,6 +456,7 @@ export async function splitTimeEntry(
   originalEntryId: string,
   splitTime: string,
   newIssueId?: string,
+  newNote?: string,
 ): Promise<void> {
   const db = getDatabase();
 
@@ -483,7 +491,7 @@ export async function splitTimeEntry(
     normalizedSplit,
     original.end_time,
     original.date,
-    original.note,
+    newNote ?? original.note,
     original.jira_worklog_id,
   );
 }
@@ -505,7 +513,8 @@ export async function splitOutRange(
   fromTime: string,
   toTime: string,
   newIssueId?: string,
-): Promise<{ firstId: string; movedId: string | null; lastId: string | null }> {
+  movedNote?: string,
+): Promise<{ firstId: string | null; movedId: string | null; lastId: string | null }> {
   const db = getDatabase();
 
   const original = (await db.get(
@@ -520,8 +529,8 @@ export async function splitOutRange(
   if (from >= to) {
     throw new Error("The split-out block must have an end after its start");
   }
-  if (from <= original.start_time) {
-    throw new Error("The split-out block must start after the entry's start time");
+  if (from < original.start_time) {
+    throw new Error("The split-out block must start at or after the entry's start time");
   }
 
   if (original.end_time) {
@@ -538,19 +547,41 @@ export async function splitOutRange(
     }
   }
 
-  const firstId = originalEntryId;
   const movedId = newIssueId ? crypto.randomUUID() : null;
   // A tail part only exists when the block does not run to the very end of
   // the entry (or when the entry is still running).
   const hasTail = original.end_time ? to < original.end_time : true;
-  const lastId = hasTail ? crypto.randomUUID() : null;
+  const movedNoteValue = movedNote ?? original.note;
 
-  // Part 1: [start_time, from) — original entry, shortened.
-  await db.run(
-    "UPDATE time_entries SET end_time = ?, is_dirty = 1 WHERE id = ?",
-    from,
-    firstId,
-  );
+  let firstId: string | null = null; // [start_time, from) — part before the block
+  let lastId: string | null = null; // [to, end_time) — part after the block
+
+  if (from <= original.start_time) {
+    // The block starts exactly at the entry's start, so there is no part
+    // before it. The original entry becomes the tail (keeping its worklog
+    // id), or is deleted entirely when the block runs to the very end.
+    if (hasTail) {
+      await db.run(
+        "UPDATE time_entries SET start_time = ?, is_dirty = 1 WHERE id = ?",
+        to,
+        originalEntryId,
+      );
+      lastId = originalEntryId;
+    } else {
+      await queueWorklogDeletion(db, original);
+      await db.run("DELETE FROM time_entries WHERE id = ?", originalEntryId);
+    }
+  } else {
+    // Part 1: [start_time, from) — original entry, shortened.
+    firstId = originalEntryId;
+    await db.run(
+      "UPDATE time_entries SET end_time = ?, is_dirty = 1 WHERE id = ?",
+      from,
+      firstId,
+    );
+    // Part 3 (when it exists) is a brand-new entry on the original issue.
+    if (hasTail) lastId = crypto.randomUUID();
+  }
 
   // Part 2: [from, to) — moved to another issue, or removed entirely.
   if (movedId) {
@@ -562,13 +593,13 @@ export async function splitOutRange(
       from,
       to,
       original.date,
-      original.note,
+      movedNoteValue,
       null,
     );
   }
 
   // Part 3: [to, end_time) — keeps running when the original was running.
-  if (lastId) {
+  if (lastId && lastId !== originalEntryId) {
     await db.run(
       `INSERT INTO time_entries (id, issue_id, start_time, end_time, date, note, jira_worklog_id, is_dirty)
        VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,

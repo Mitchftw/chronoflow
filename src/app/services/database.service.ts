@@ -147,15 +147,15 @@ export class DatabaseService {
   }
 
   /** Cut an entry at a point; the part after the cut can move to another issue. */
-  async splitTimeEntry(id: string, splitTime: string, newIssueId?: string): Promise<void> {
-    const res = await this.ipc.splitTimeEntry(id, splitTime, newIssueId);
+  async splitTimeEntry(id: string, splitTime: string, newIssueId?: string, newNote?: string): Promise<void> {
+    const res = await this.ipc.splitTimeEntry(id, splitTime, newIssueId, newNote);
     if (!res.success) throw new Error(res.error ?? 'Failed to split time entry');
     await this.reloadTimeEntries();
   }
 
   /** Cut a block [from, to] out of an entry, removing it or moving it to another issue. */
-  async splitOutTimeEntry(id: string, fromTime: string, toTime: string, newIssueId?: string): Promise<void> {
-    const res = await this.ipc.splitOutTimeEntry(id, fromTime, toTime, newIssueId);
+  async splitOutTimeEntry(id: string, fromTime: string, toTime: string, newIssueId?: string, newNote?: string): Promise<void> {
+    const res = await this.ipc.splitOutTimeEntry(id, fromTime, toTime, newIssueId, newNote);
     if (!res.success) throw new Error(res.error ?? 'Failed to split time entry');
     await this.reloadTimeEntries();
   }

@@ -21,6 +21,9 @@ export async function initDatabase(): Promise<Database> {
   }
 
   const dbPath = getDatabasePath();
+  if (!app.isPackaged || process.env['NODE_ENV'] === "development") {
+    logger.warn("=== DEV MODE: using isolated development database ===");
+  }
   logger.info("Database path:", dbPath);
 
   db = await open({ filename: dbPath, driver: sqlite3.Database });
@@ -205,7 +208,10 @@ export async function closeDatabase(): Promise<void> {
 }
 
 export function getDatabasePath(): string {
-  const isDev = process.env['NODE_ENV'] === "development";
+  // Anything running from source (electron .) is dev — never the production
+  // database, even if NODE_ENV was accidentally left unset. NODE_ENV alone
+  // is also honored for scripts that set it explicitly.
+  const isDev = !app.isPackaged || process.env['NODE_ENV'] === "development";
   const dbName = isDev ? "todo-tracker.dev.db" : "todo-tracker.db";
   return path.join(getPath(), dbName);
 }

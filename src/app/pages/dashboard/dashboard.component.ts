@@ -146,7 +146,7 @@ import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
     <app-time-entry-list
       [entries]="selectedDateEntries()"
       [issues]="db.issues()"
-      [timerRunning]="timer.isRunning()"
+      [activeEntryId]="timer.timerState()?.entryId ?? null"
       (deleteEntry)="deleteEntry($event)"
       (editEntry)="openEditEntryDialog($event)"
       (splitEntry)="openSplitEntryDialog($event)"
@@ -325,9 +325,22 @@ export class DashboardComponent {
   }
 
   async resumeEntry(entry: TimeEntry): Promise<void> {
+    // Same flow as the issue cards: while a timer is active, the play buttons
+    // are just indicators — clicking does nothing (the active entry shows a
+    // pulsing dot instead).
+    const state = this.timer.timerState();
+    if (state?.isRunning) return;
+
     this.errorMessage.set(null);
     try {
-      await this.db.resumeTimeEntry(entry.id);
+      if (!entry.endTime) {
+        // Open (endless) entry → continue timing from its original start.
+        await this.db.resumeTimeEntry(entry.id);
+      } else {
+        // Ended entry → start a fresh timer on the same issue.
+        await this.timer.start(entry.issueId);
+      }
+      await this.db.reloadTimeEntries();
     } catch (err: any) {
       this.errorMessage.set(err?.message ?? 'Failed to resume the entry');
     }

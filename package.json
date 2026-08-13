@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.15\n\n#### New Features:\n- **Running timer survives an app restart:** if a timer was left running when the app quit, it is picked up automatically on startup and keeps counting from its original start time (e.g. started 09:00, reopen at 15:00 → 6h).\n- **Resume an open entry from the dashboard:** open (endless) entries now have a play button that resumes timing from the entry's original start time — useful for entries left running or endless manual entries.\n\n#### Notes:\n- Pause state is not persisted: quitting while paused resumes as running on next start."
+      "releaseNotes": "### ChronoFlow v0.1.16\n\n#### New Features:\n- **Dev fully isolated from production data:** dev builds use their own userData folder + database, can never touch the production DB, and show a DEV badge in the title bar (dev and the installed app can run side by side).\n- **Play-button styling & tracking indicator on dashboard entries:** same filled play button as the issues view on every entry, with a pulsing dot + row highlight on the entry currently being tracked.\n- **Running timer survives an app restart:** an open timer is restored on startup and keeps counting from its original start time.\n- **Resume an open entry from the dashboard:** open (endless) entries have a play button that resumes timing from the entry's original start time.\n- **Split improvements:** you can now start a split block at the entry's exact start time (e.g. remove/move the first hour after a lunch break), and when moving a block/part to another issue the comment is shown in an editable field (defaults to the original comment) instead of being copied blindly.\n- **No seconds when manually editing times:** start/end time fields are minute-accurate (HH:MM) instead of showing seconds.\n\n#### Fixes:\n- **Data-loss root cause fixed:** issue/project syncs no longer wipe time entries (`INSERT OR REPLACE` → upsert) — previously the `ON DELETE CASCADE` could silently delete entries on every sync/load.\n- **Worklog loading uses local day boundaries:** night worklogs (00:00–02:00 local) no longer get missed on both days.\n- **Null-note crash fixed:** editing a time entry with an empty comment no longer crashes the save.\n\n#### Notes:\n- Pause state is not persisted: quitting while paused resumes as running on next start."
     }
   }
 }

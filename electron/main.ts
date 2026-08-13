@@ -12,6 +12,25 @@ if (process.env["IS_TEST"] === "true") {
   app.setPath("userData", testUserDataPath);
 }
 
+// Dev builds (running from source) must NEVER touch the production
+// userData. Give them their own directory so the database, settings, logs
+// and the single-instance heartbeat are fully isolated from the installed
+// app — a dev instance can never wipe, lock or corrupt the production
+// database, no matter how it is launched (npm run dev, IDE, direct
+// electron .).
+if (!app.isPackaged) {
+  app.setPath(
+    "userData",
+    path.join(app.getPath("appData"), "ChronoFlow-Dev"),
+  );
+  // Note: console.log here — the logger import is initialized later in the
+  // module, so calling it this early would throw a TDZ ReferenceError.
+  console.log(
+    "[DEV MODE] Using isolated userData:",
+    app.getPath("userData"),
+  );
+}
+
 import { autoUpdater } from "electron-updater";
 import { initDatabase, closeDatabase } from "./database";
 import * as db from "./db-service";
@@ -171,6 +190,14 @@ function registerUpdaterHandlers() {
   // `app.getVersion()` returns the version of the running build, so after
   // an update is installed it reflects the new version.
   ipcMain.handle("app:get-version", () => app.getVersion());
+
+  // Whether this is a dev build (running from source). Lets the renderer
+  // show a visible DEV badge so nobody mistakes the dev instance for the
+  // installed app.
+  ipcMain.handle(
+    "app:is-dev",
+    () => !app.isPackaged || process.env["NODE_ENV"] === "development",
+  );
 
   ipcMain.handle("updater:check-for-updates", async () => {
     try {
