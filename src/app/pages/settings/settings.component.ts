@@ -14,21 +14,16 @@ import { JiraService } from "../../services/jira.service";
 import { UpdateService } from "../../services/update.service";
 import { IdleDetectionService } from "../../services/idle-detection.service";
 import { IpcService } from "../../services/ipc.service";
+import { PageHeaderComponent } from "../../components/common/page-header.component";
 import type { JiraConnection, DisplayInfo } from "../../../types";
 
 @Component({
   selector: "app-settings",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: "block max-w-2xl" },
+  imports: [PageHeaderComponent],
+  host: { class: "block max-w-3xl" },
   template: `
-    <header class="mb-8 select-none">
-      <h1 class="text-2xl font-bold tracking-tight text-foreground/95">
-        Settings
-      </h1>
-      <p class="mt-1.5 text-xs font-medium text-muted-foreground/80">
-        Configure your application preferences
-      </p>
-    </header>
+    <app-page-header title="Settings" subtitle="Configure your application preferences" />
 
     <div class="space-y-6">
       <!-- ═══ Appearance ═══ -->

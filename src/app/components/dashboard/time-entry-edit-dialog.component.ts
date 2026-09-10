@@ -41,7 +41,21 @@ import type { Issue } from '../../models/issue';
           }
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <!-- Date -->
+          <div>
+            <label for="edit-entry-date" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+              Date <span class="text-primary">*</span>
+            </label>
+            <input
+              id="edit-entry-date"
+              type="date"
+              [value]="entryDate()"
+              (input)="entryDate.set($any($event.target).value)"
+              class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+            />
+          </div>
+
           <!-- Start Time -->
           <div>
             <label for="edit-start-time" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
@@ -103,6 +117,9 @@ export class TimeEntryEditDialogComponent {
   /** Date for new manual entry */
   readonly date = input<string>('');
 
+  /** Optional values to pre-fill when creating a new entry (e.g. from a timeline gap). */
+  readonly prefill = input<{ startTime?: string; endTime?: string; issueId?: string } | null>(null);
+
   /** Issues list */
   readonly issues = input<Issue[]>([]);
 
@@ -113,6 +130,7 @@ export class TimeEntryEditDialogComponent {
   readonly dismissed = output<void>();
 
   /** Form fields */
+  readonly entryDate = signal('');
   readonly startTime = signal('');
   readonly endTime = signal('');
   readonly note = signal('');
@@ -137,10 +155,11 @@ export class TimeEntryEditDialogComponent {
 
   /** Form validity */
   readonly isValid = computed(() => {
+    const dateVal = (this.entryDate() ?? '').trim();
     const start = (this.startTime() ?? '').trim();
     const end = (this.endTime() ?? '').trim();
     const hasIssue = this.entry() ? true : !!this.selectedIssueId();
-    if (!start || !hasIssue) return false;
+    if (!dateVal || !start || !hasIssue) return false;
     // If end time is set, it must not be before start time (equal is valid for 0-duration Jira worklogs)
     if (end && end < start) return false;
     return true;
@@ -151,6 +170,7 @@ export class TimeEntryEditDialogComponent {
     effect(() => {
       const activeEntry = this.entry();
       if (activeEntry) {
+        this.entryDate.set(activeEntry.date || this.date() || new Date().toISOString().slice(0, 10));
         this.startTime.set(this.toHm(activeEntry.startTime));
         this.endTime.set(this.toHm(activeEntry.endTime));
         this.note.set(activeEntry.note ?? '');
@@ -162,12 +182,23 @@ export class TimeEntryEditDialogComponent {
       if (this.isOpen() && !this.entry()) {
         const now = new Date();
         const pad = (n: number) => String(n).padStart(2, '0');
-        const defaultStart = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        const prefill = this.prefill();
+        const defaultStart = prefill?.startTime || `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        const defaultDate = this.date() || `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        this.entryDate.set(defaultDate);
         this.startTime.set(defaultStart);
-        this.endTime.set('');
+        this.endTime.set(prefill?.endTime ?? '');
         this.note.set('');
-        this.selectedIssueId.set('');
+        this.selectedIssueId.set(prefill?.issueId ?? '');
         this.selectedIssueQuery.set('');
+        if (prefill?.issueId) {
+          const issue = this.issues().find((i) => i.id === prefill.issueId);
+          if (issue) {
+            this.selectedIssueQuery.set(
+              issue.jiraIssueKey ? `[${issue.jiraIssueKey}] ${issue.title}` : issue.title,
+            );
+          }
+        }
       }
     });
   }
@@ -208,6 +239,7 @@ export class TimeEntryEditDialogComponent {
     if (!this.isValid()) return;
 
     const activeEntry = this.entry();
+    const targetDate = (this.entryDate() ?? '').trim() || this.date() || new Date().toISOString().slice(0, 10);
     const start = (this.startTime() ?? '').trim();
     const end = (this.endTime() ?? '').trim() || null;
     const currentNote = (this.note() ?? '').trim();
@@ -216,6 +248,7 @@ export class TimeEntryEditDialogComponent {
       if (activeEntry) {
         // Edit mode
         const updated = await this.db.updateTimeEntry(activeEntry.id, {
+          date: targetDate,
           startTime: start,
           endTime: end,
           note: currentNote,
@@ -231,9 +264,9 @@ export class TimeEntryEditDialogComponent {
 
         const newEntry = await this.db.createTimeEntry({
           issueId,
+          date: targetDate,
           startTime: start,
           endTime: end,
-          date: this.date() || new Date().toISOString().slice(0, 10),
           note: currentNote,
           isDirty: true,
         });

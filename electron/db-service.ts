@@ -149,6 +149,7 @@ export async function getIssues(filters?: {
     startTime: row.start_time,
     createdAt: row.created_at,
     date: row.date,
+    color: row.color ?? null,
   }));
 }
 
@@ -171,6 +172,7 @@ export async function getIssue(id: string): Promise<Issue | null> {
     startTime: r.start_time,
     createdAt: r.created_at,
     date: r.date,
+    color: r.color ?? null,
   };
 }
 
@@ -180,8 +182,8 @@ export async function createIssue(issue: Issue): Promise<void> {
     `INSERT INTO issues (
       id, title, description, project_id, status,
       jira_issue_key, jira_connection_id, estimate, time_spent,
-      is_running, start_time, created_at, date
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      is_running, start_time, created_at, date, color
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     issue.id,
     issue.title,
     issue.description || null,
@@ -195,6 +197,7 @@ export async function createIssue(issue: Issue): Promise<void> {
     issue.startTime || null,
     issue.createdAt,
     issue.date,
+    issue.color || null,
   );
 }
 
@@ -249,6 +252,10 @@ export async function updateIssue(
   if (updates.date !== undefined) {
     fields.push("date = ?");
     values.push(updates.date);
+  }
+  if (updates.color !== undefined) {
+    fields.push("color = ?");
+    values.push(updates.color);
   }
 
   if (fields.length === 0) return;
@@ -932,8 +939,8 @@ export async function bulkInsertIssues(issues: Issue[]): Promise<void> {
       `INSERT INTO issues (
         id, title, description, project_id, status,
         jira_issue_key, jira_connection_id, estimate, time_spent,
-        is_running, start_time, created_at, date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        is_running, start_time, created_at, date, color
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         description = excluded.description,
@@ -946,7 +953,8 @@ export async function bulkInsertIssues(issues: Issue[]): Promise<void> {
         is_running = excluded.is_running,
         start_time = excluded.start_time,
         created_at = excluded.created_at,
-        date = excluded.date`,
+        date = excluded.date,
+        color = excluded.color`,
       issue.id,
       issue.title,
       issue.description || null,
@@ -960,6 +968,7 @@ export async function bulkInsertIssues(issues: Issue[]): Promise<void> {
       issue.startTime || null,
       issue.createdAt,
       issue.date,
+      issue.color || null,
     );
   }
 }

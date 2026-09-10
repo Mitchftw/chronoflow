@@ -8,31 +8,23 @@ import {
 import { DatabaseService } from '../../services/database.service';
 import { ProjectCardComponent } from '../../components/projects/project-card.component';
 import { ProjectFormDialogComponent } from '../../components/projects/project-form-dialog.component';
+import { PageHeaderComponent } from '../../components/common/page-header.component';
 import type { Project } from '../../models/project';
 
 @Component({
   selector: 'app-projects',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProjectCardComponent, ProjectFormDialogComponent],
+  imports: [ProjectCardComponent, ProjectFormDialogComponent, PageHeaderComponent],
   host: { class: 'block' },
   template: `
-    <header class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-foreground/95">Projects</h1>
-        <p class="mt-1.5 text-xs font-medium text-muted-foreground/80">
-          Manage your projects and track issues
-        </p>
-      </div>
-      <button
-        class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-all duration-300 hover:bg-primary/95 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer self-start sm:self-auto"
-        (click)="openCreateDialog()"
-      >
+    <app-page-header title="Projects" subtitle="Manage your projects and track issues">
+      <button class="btn btn-primary" (click)="openCreateDialog()">
         <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
         </svg>
         New Project
       </button>
-    </header>
+    </app-page-header>
 
     @if (db.loading() && db.projects().length === 0) {
       <div class="flex items-center justify-center py-16 select-none">

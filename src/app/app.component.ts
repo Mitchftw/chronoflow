@@ -41,12 +41,10 @@ import { UpdateToastComponent } from './components/common/update-toast.component
           (toggleCollapse)="sideNavCollapsed.set(!sideNavCollapsed())"
         />
 
-        <main
-          class="flex-1 overflow-y-auto px-6 pt-8 pb-6"
-          [class.pl-6]="!sideNavCollapsed()"
-          [class.pl-4]="sideNavCollapsed()"
-        >
-          <router-outlet />
+        <main class="flex-1 overflow-y-auto">
+          <div class="mx-auto w-full max-w-[1560px] px-6 pt-8 pb-12">
+            <router-outlet />
+          </div>
         </main>
       </div>
 

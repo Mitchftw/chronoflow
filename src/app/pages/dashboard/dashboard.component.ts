@@ -4,80 +4,79 @@ import {
   inject,
   signal,
   computed,
+  HostListener,
 } from '@angular/core';
 import { DatabaseService } from '../../services/database.service';
 import { TimerService } from '../../services/timer.service';
+import { DashboardStateService } from '../../services/dashboard-state.service';
+import { SettingsService } from '../../services/settings.service';
 import {
   StatsCardsComponent,
   type DashboardStats,
 } from '../../components/dashboard/stats-cards.component';
 import { ActiveTimerCardComponent } from '../../components/dashboard/active-timer-card.component';
+import { DayTimelineComponent } from '../../components/dashboard/day-timeline.component';
+import {
+  WeekHeatmapComponent,
+  type HeatmapDay,
+} from '../../components/dashboard/week-heatmap.component';
 import { TimeEntryListComponent } from '../../components/dashboard/time-entry-list.component';
 import { TimeEntryEditDialogComponent } from '../../components/dashboard/time-entry-edit-dialog.component';
 import { TimeEntrySplitDialogComponent } from '../../components/dashboard/time-entry-split-dialog.component';
 import type { Issue } from '../../models/issue';
 import type { TimeEntry } from '../../models/time-entry';
 import { type SearchResult } from '../../components/common/search-bar.component';
-import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
+import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'date-fns';
 
 @Component({
   selector: 'app-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     StatsCardsComponent,
+    WeekHeatmapComponent,
     ActiveTimerCardComponent,
+    DayTimelineComponent,
     TimeEntryListComponent,
     TimeEntryEditDialogComponent,
     TimeEntrySplitDialogComponent,
   ],
   host: { class: 'block' },
   template: `
-    <header class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 select-none">
-      <div>
-        <h1 class="text-3xl font-extrabold text-foreground tracking-tight">Dashboard</h1>
-        <div class="mt-1.5 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <span class="inline-block size-2 rounded-full bg-primary animate-pulse"></span>
+    <header class="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between select-none">
+      <div class="min-w-0">
+        <h1 class="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
+        <div class="mt-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span class="inline-block size-1.5 rounded-full bg-primary animate-pulse"></span>
           {{ displayDate() }}
         </div>
       </div>
 
-      <!-- Date Navigator & Sync -->
-      <div class="flex flex-wrap items-center gap-3">
-        <!-- Load Button -->
-        <button
-          class="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-card/50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-foreground/80 transition-all hover:bg-secondary/80 hover:text-primary active:scale-95 cursor-pointer shadow-sm"
-          (click)="loadJira()"
-          [disabled]="db.loading()"
-          title="Load issues and worklogs from Jira"
-        >
-          <svg class="size-3.5" [class.animate-spin]="db.loading()" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Jira actions -->
+        <button class="btn-icon" (click)="loadJira()" [disabled]="db.loading()" title="Load issues and worklogs from Jira" aria-label="Load from Jira">
+          <svg class="size-4" [class.animate-spin]="db.loading()" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             @if (db.loading()) {
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
             } @else {
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
             }
           </svg>
-          Load
         </button>
-
-        <!-- Sync Button -->
-        <button
-          class="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-card/50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-foreground/80 transition-all hover:bg-secondary/80 hover:text-primary active:scale-95 cursor-pointer shadow-sm"
-          (click)="syncJira()"
-          [disabled]="db.loading()"
-          title="Sync local entries to Jira"
-        >
-          <svg class="size-3.5" [class.animate-spin]="db.loading()" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <button class="btn-icon" (click)="syncJira()" [disabled]="db.loading()" title="Sync local entries to Jira" aria-label="Sync to Jira">
+          <svg class="size-4" [class.animate-spin]="db.loading()" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
           </svg>
-          Sync
         </button>
 
-        <div class="flex items-center gap-1 rounded-xl border border-border/40 bg-card/65 p-1 backdrop-blur-md shadow-sm">
+        <span class="mx-0.5 hidden h-6 w-px bg-border/60 sm:block"></span>
+
+        <!-- Date navigator -->
+        <div class="flex items-center gap-1 rounded-xl border border-border/50 bg-card/60 p-1 backdrop-blur-md shadow-sm">
           <button
             class="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-all cursor-pointer"
             (click)="prevDay()"
-            title="Previous Day"
+            title="Previous day"
+            aria-label="Previous day"
           >
             <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
@@ -93,7 +92,8 @@ import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
           <button
             class="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-all cursor-pointer"
             (click)="nextDay()"
-            title="Next Day"
+            title="Next day"
+            aria-label="Next day"
           >
             <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
@@ -122,43 +122,65 @@ import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
       </div>
     }
 
-    <!-- Stats -->
-    <app-stats-cards
-      class="mb-8"
-      [stats]="stats()"
-    />
+    <!-- Workspace: primary timeline column + side rail -->
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-3 xl:items-start">
+      <!-- Primary column -->
+      <div class="min-w-0 space-y-6 xl:col-span-2">
+        <!-- Active Timer (Only show on Today or if running) -->
+        @if (isToday() || timer.isRunning()) {
+          <section class="relative z-20">
+            <app-active-timer-card
+              [isRunning]="timer.isRunning()"
+              [issueName]="timer.activeIssue()?.title ?? timer.activeIssue()?.jiraIssueKey ?? null"
+              [formattedTime]="timer.formattedElapsed()"
+              [localIssues]="db.issues()"
+              (resultSelected)="handleSearchSelection($event)"
+              (stop)="stopTimer()"
+            />
+          </section>
+        }
 
-    <!-- Active Timer (Only show on Today or if running) -->
-    @if (isToday() || timer.isRunning()) {
-      <section class="mb-8 relative z-20">
-        <app-active-timer-card
-          [isRunning]="timer.isRunning()"
-          [issueName]="timer.activeIssue()?.title ?? timer.activeIssue()?.jiraIssueKey ?? null"
-          [formattedTime]="timer.formattedElapsed()"
-          [localIssues]="db.issues()"
-          (resultSelected)="handleSearchSelection($event)"
-          (stop)="stopTimer()"
+        <!-- Day timeline with visible gaps -->
+        <app-day-timeline
+          [entries]="selectedDateEntries()"
+          [issues]="db.issues()"
+          [isToday]="isToday()"
+          [activeEntryId]="timer.timerState()?.entryId ?? null"
+          (entrySelected)="openEditEntryDialog($event)"
+          (gapSelected)="openCreateEntryDialogForRange($event)"
         />
-      </section>
-    }
 
-    <!-- Time Entries for selected date -->
-    <app-time-entry-list
-      [entries]="selectedDateEntries()"
-      [issues]="db.issues()"
-      [activeEntryId]="timer.timerState()?.entryId ?? null"
-      (deleteEntry)="deleteEntry($event)"
-      (editEntry)="openEditEntryDialog($event)"
-      (splitEntry)="openSplitEntryDialog($event)"
-      (resumeEntry)="resumeEntry($event)"
-      (addManualEntry)="openCreateEntryDialog()"
-    />
+        <!-- Time Entries for selected date -->
+        <app-time-entry-list
+          [entries]="selectedDateEntries()"
+          [issues]="db.issues()"
+          [dateLabel]="dateLabel()"
+          [activeEntryId]="timer.timerState()?.entryId ?? null"
+          (deleteEntry)="deleteEntry($event)"
+          (editEntry)="openEditEntryDialog($event)"
+          (splitEntry)="openSplitEntryDialog($event)"
+          (resumeEntry)="resumeEntry($event)"
+          (addManualEntry)="openCreateEntryDialog()"
+        />
+      </div>
+
+      <!-- Side rail -->
+      <aside class="space-y-6 xl:col-span-1">
+        <app-stats-cards [stats]="stats()" />
+        <app-week-heatmap
+          [days]="weekDays()"
+          [goalMinutes]="(settings.settings().defaultVacationHours || 8) * 60"
+          (daySelected)="selectDate($event)"
+        />
+      </aside>
+    </div>
 
     <!-- Time Entry Edit/Manual Create Dialog -->
     <app-time-entry-edit-dialog
       [(isOpen)]="isTimeEntryDialogOpen"
       [entry]="selectedTimeEntry()"
       [date]="formattedDate()"
+      [prefill]="entryPrefill()"
       [issues]="db.issues()"
       (saved)="onEntrySaved($event)"
       (dismissed)="onEntryDismissed()"
@@ -188,13 +210,20 @@ import { format, addDays, subDays, startOfDay, isSameDay } from 'date-fns';
 export class DashboardComponent {
   protected db = inject(DatabaseService);
   protected timer = inject(TimerService);
+  protected dashboardState = inject(DashboardStateService);
+  protected settings = inject(SettingsService);
 
-  selectedDate = signal(startOfDay(new Date()));
+  /**
+   * The selected calendar day, shared via DashboardStateService so it survives
+   * leaving/returning to this route instead of always resetting to today.
+   */
+  readonly selectedDate = this.dashboardState.selectedDate;
   statusMessage = signal<string>('');
   errorMessage = signal<string | null>(null);
 
   isTimeEntryDialogOpen = signal(false);
   selectedTimeEntry = signal<TimeEntry | null>(null);
+  entryPrefill = signal<{ startTime?: string; endTime?: string; issueId?: string } | null>(null);
   isSplitDialogOpen = signal(false);
   selectedSplitEntry = signal<TimeEntry | null>(null);
   formattedDate = computed(() => format(this.selectedDate(), 'yyyy-MM-dd'));
@@ -206,7 +235,39 @@ export class DashboardComponent {
     return format(date, 'EEEE, MMMM d, yyyy');
   });
 
+  dateLabel = computed(() => {
+    const date = this.selectedDate();
+    if (isSameDay(date, new Date())) return 'Today';
+    if (isSameDay(date, subDays(new Date(), 1))) return 'Yesterday';
+    return format(date, 'MMM d, yyyy');
+  });
+
   isToday = computed(() => isSameDay(this.selectedDate(), new Date()));
+
+  /** Monday–Sunday strip for the week containing the selected day. */
+  weekDays = computed<HeatmapDay[]>(() => {
+    const weekStart = startOfWeek(this.selectedDate(), { weekStartsOn: 1 });
+    const entries = this.db.timeEntries();
+    const today = new Date();
+    const selected = this.selectedDate();
+    const days: HeatmapDay[] = [];
+    for (let i = 0; i < 7; i++) {
+      const day = addDays(weekStart, i);
+      const iso = format(day, 'yyyy-MM-dd');
+      const minutes = entries
+        .filter((e) => e.date === iso)
+        .reduce((sum, e) => sum + Math.round(this.db.getEntryDuration(e) / 60000), 0);
+      days.push({
+        date: iso,
+        weekday: format(day, 'EEE'),
+        dayNumber: day.getDate(),
+        minutes,
+        isToday: isSameDay(day, today),
+        isSelected: isSameDay(day, selected),
+      });
+    }
+    return days;
+  });
 
   selectedDateEntries = computed(() => {
     const formatted = format(this.selectedDate(), 'yyyy-MM-dd');
@@ -224,6 +285,7 @@ export class DashboardComponent {
       projectCount: this.db.projects().length,
       issueCount: issues.length,
       completedCount: issues.filter((i) => i.status === 'done').length,
+      goalMinutes: (this.settings.settings().defaultVacationHours || 8) * 60,
     };
   });
 
@@ -241,6 +303,53 @@ export class DashboardComponent {
 
   goToday() {
     this.selectedDate.set(startOfDay(new Date()));
+  }
+
+  selectDate(iso: string) {
+    const [y, m, d] = iso.split('-').map(Number);
+    if (y && m && d) {
+      this.selectedDate.set(startOfDay(new Date(y, m - 1, d)));
+    }
+  }
+
+  /** Lightweight shortcuts: ←/→ change day, T = today, S = stop running timer. */
+  @HostListener('window:keydown', ['$event'])
+  handleShortcut(event: KeyboardEvent): void {
+    if (this.isTimeEntryDialogOpen() || this.isSplitDialogOpen()) return;
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        this.prevDay();
+        event.preventDefault();
+        break;
+      case 'ArrowRight':
+        this.nextDay();
+        event.preventDefault();
+        break;
+      case 't':
+      case 'T':
+        this.goToday();
+        event.preventDefault();
+        break;
+      case 's':
+      case 'S':
+        if (this.timer.isRunning()) {
+          this.stopTimer();
+          event.preventDefault();
+        }
+        break;
+    }
   }
 
   async syncJira() {
@@ -306,11 +415,20 @@ export class DashboardComponent {
   }
 
   openEditEntryDialog(entry: TimeEntry): void {
+    this.entryPrefill.set(null);
     this.selectedTimeEntry.set(entry);
     this.isTimeEntryDialogOpen.set(true);
   }
 
   openCreateEntryDialog(): void {
+    this.entryPrefill.set(null);
+    this.selectedTimeEntry.set(null);
+    this.isTimeEntryDialogOpen.set(true);
+  }
+
+  /** Open the create dialog pre-filled with a gap's time range. */
+  openCreateEntryDialogForRange(range: { start: string; end: string }): void {
+    this.entryPrefill.set({ startTime: range.start, endTime: range.end });
     this.selectedTimeEntry.set(null);
     this.isTimeEntryDialogOpen.set(true);
   }
@@ -346,7 +464,13 @@ export class DashboardComponent {
     }
   }
 
-  onEntrySaved(_entry: TimeEntry): void {
+  onEntrySaved(entry: TimeEntry): void {
+    if (entry?.date) {
+      const [y, m, d] = entry.date.split('-').map(Number);
+      if (y && m && d) {
+        this.selectedDate.set(startOfDay(new Date(y, m - 1, d)));
+      }
+    }
     this.db.reloadTimeEntries();
   }
 

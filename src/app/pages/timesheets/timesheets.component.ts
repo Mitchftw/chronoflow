@@ -7,8 +7,10 @@ import {
 } from '@angular/core';
 import { DatabaseService } from '../../services/database.service';
 import { JiraService } from '../../services/jira.service';
+import { PageHeaderComponent } from '../../components/common/page-header.component';
 import type { TimeEntry } from '../../models/time-entry';
 import type { Issue } from '../../models/issue';
+import { issueColor as resolveIssueColor } from '../../utils/colors';
 import { format } from 'date-fns';
 
 interface GroupedEntry {
@@ -23,14 +25,10 @@ interface GroupedEntry {
 @Component({
   selector: 'app-timesheets',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [PageHeaderComponent],
   host: { class: 'block' },
   template: `
-    <header class="mb-6 select-none">
-      <h1 class="text-2xl font-bold tracking-tight text-foreground/95">Timesheets</h1>
-      <p class="mt-1.5 text-xs font-medium text-muted-foreground/80">
-        View and manage your time entries
-      </p>
-    </header>
+    <app-page-header title="Timesheets" subtitle="View and manage your time entries" />
 
     <!-- Date picker + actions -->
     <div class="mb-6 flex flex-wrap items-center gap-3.5 select-none">
@@ -93,10 +91,14 @@ interface GroupedEntry {
     @if (!loading() && groupedEntries().length > 0) {
       <div class="space-y-4">
         @for (group of groupedEntries(); track group.issueId) {
-          <div class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md overflow-hidden shadow-sm transition-all duration-300">
+          <div
+            class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md overflow-hidden shadow-sm transition-all duration-300"
+            [style.border-left]="'3px solid ' + getIssueColor(group.issueId)"
+          >
             <!-- Group header -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 px-5 py-4 border-b border-border/20 select-none">
               <div class="flex flex-wrap items-center gap-2">
+                <span class="size-2.5 rounded-full shrink-0" [style.background-color]="getIssueColor(group.issueId)" aria-hidden="true"></span>
                 <span class="text-sm font-bold text-foreground/95 tracking-tight">{{ group.issueTitle }}</span>
                 @if (group.issueKey) {
                   <span class="rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary border border-primary/20">
@@ -375,6 +377,10 @@ export class TimesheetsComponent {
 
   allSynced(group: GroupedEntry): boolean {
     return group.entries.length > 0 && group.entries.every((e) => !!e.jiraWorklogId);
+  }
+
+  getIssueColor(issueId: string): string {
+    return resolveIssueColor(this.issues().find((i) => i.id === issueId));
   }
 
   formatTime(hhmm: string): string {

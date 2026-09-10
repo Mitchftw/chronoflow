@@ -72,6 +72,7 @@ async function createTables(): Promise<void> {
       start_time INTEGER,
       created_at INTEGER NOT NULL,
       date TEXT NOT NULL,
+      color TEXT,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
     )
   `);
@@ -179,6 +180,15 @@ async function applyMigrations(): Promise<void> {
   );
   if (!hasIsDirty) {
     await db.exec("ALTER TABLE time_entries ADD COLUMN is_dirty INTEGER DEFAULT 0");
+  }
+
+  // Migration: Add color to issues if missing
+  const issueColumns = await db.all("PRAGMA table_info(issues)");
+  const hasIssueColor = (issueColumns as any[]).some(
+    (col) => col.name === "color",
+  );
+  if (!hasIssueColor) {
+    await db.exec("ALTER TABLE issues ADD COLUMN color TEXT");
   }
 
   // Migration: Create deleted_jira_worklogs table if it doesn't exist

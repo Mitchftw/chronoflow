@@ -1,6 +1,7 @@
-import { Component, ChangeDetectionStrategy, input, output } from '@angular/core';
+import { Component, ChangeDetectionStrategy, input, output, computed } from '@angular/core';
 import type { TimeEntry } from '../../models/time-entry';
 import type { Issue } from '../../models/issue';
+import { issueColor as resolveIssueColor } from '../../utils/colors';
 
 @Component({
   selector: 'app-time-entry-list',
@@ -8,7 +9,7 @@ import type { Issue } from '../../models/issue';
   host: { class: 'block' },
   template: `
     <div class="mb-4 flex items-center justify-between">
-      <h2 class="text-lg font-bold text-foreground tracking-tight select-none">Today's Time Entries</h2>
+      <h2 class="text-lg font-bold text-foreground tracking-tight select-none">{{ listTitle() }}</h2>
       <button
         class="inline-flex items-center gap-1.5 rounded-xl border border-border/50 bg-secondary/35 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-foreground/90 transition-all duration-200 hover:bg-secondary/75 cursor-pointer"
         (click)="addManualEntry.emit()"
@@ -27,7 +28,7 @@ import type { Issue } from '../../models/issue';
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <p class="text-sm font-semibold text-foreground/80">No time entries today</p>
+        <p class="text-sm font-semibold text-foreground/80">{{ emptyMessage() }}</p>
         <p class="mt-1 text-xs text-muted-foreground/60 text-center px-6 mb-4">Start a timer or add an entry manually</p>
         <button
           class="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-all duration-300 hover:bg-primary/95 cursor-pointer"
@@ -60,7 +61,14 @@ import type { Issue } from '../../models/issue';
                   [class]="isActiveEntry(entry) ? 'bg-primary/[0.05]' : ''"
                 >
                   <td class="px-5 py-4 text-sm font-semibold text-foreground/95">
-                    {{ getIssueName(entry.issueId) }}
+                    <span class="flex items-center gap-2.5 min-w-0">
+                      <span
+                        class="size-2.5 shrink-0 rounded-full"
+                        [style.background-color]="getIssueColor(entry.issueId)"
+                        aria-hidden="true"
+                      ></span>
+                      <span class="truncate">{{ getIssueName(entry.issueId) }}</span>
+                    </span>
                   </td>
                   <td class="px-5 py-4 text-sm font-mono text-muted-foreground">{{ entry.startTime }}</td>
                   <td class="px-5 py-4 text-sm font-mono text-muted-foreground">{{ entry.endTime ?? '—' }}</td>
@@ -136,6 +144,7 @@ import type { Issue } from '../../models/issue';
 export class TimeEntryListComponent {
   entries = input.required<TimeEntry[]>();
   issues = input<Issue[]>([]);
+  dateLabel = input<string>('Today');
   /** Id of the entry the timer is currently tracking (from the timer state). */
   activeEntryId = input<string | null>(null);
 
@@ -145,10 +154,29 @@ export class TimeEntryListComponent {
   resumeEntry = output<TimeEntry>();
   addManualEntry = output<void>();
 
+  readonly listTitle = computed(() => {
+    const label = this.dateLabel();
+    if (!label) return 'Time Entries';
+    if (label === 'Today' || label === 'Yesterday') return `${label}'s Time Entries`;
+    return `Time Entries — ${label}`;
+  });
+
+  readonly emptyMessage = computed(() => {
+    const label = this.dateLabel();
+    if (!label) return 'No time entries';
+    if (label === 'Today') return 'No time entries today';
+    if (label === 'Yesterday') return 'No time entries yesterday';
+    return `No time entries for ${label}`;
+  });
+
   getIssueName(issueId: string): string {
     const issue = this.issues().find((i) => i.id === issueId);
     if (!issue) return issueId.slice(0, 8);
     return issue.jiraIssueKey ? `${issue.jiraIssueKey} ${issue.title}` : issue.title;
+  }
+
+  getIssueColor(issueId: string): string {
+    return resolveIssueColor(this.issues().find((i) => i.id === issueId));
   }
 
   /** Whether this open entry is the one currently being tracked. */

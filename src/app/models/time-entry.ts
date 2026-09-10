@@ -21,6 +21,7 @@ export interface TimeEntryCreate {
 export interface TimeEntryUpdate {
   startTime?: string;
   endTime?: string | null;
+  date?: string;
   note?: string;
   jiraWorklogId?: string | null;
   isDirty?: boolean;

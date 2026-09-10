@@ -7,9 +7,16 @@ import type { Issue } from '../../models/issue';
   host: { class: 'block' },
   template: `
     <div
-      class="flex items-center gap-4 rounded-2xl border border-border/40 bg-card/65 px-5 py-4 transition-all duration-300 hover:bg-secondary/45 hover:border-primary/20 hover:shadow-sm backdrop-blur-md select-none relative"
+      class="flex items-center gap-4 rounded-2xl border border-border/40 bg-card/65 px-5 py-4 transition-all duration-300 hover:bg-secondary/45 hover:border-primary/20 hover:shadow-sm backdrop-blur-md select-none relative overflow-hidden"
       [class]="issue().isRunning ? 'border-primary/30 bg-primary/[0.02]' : ''"
     >
+      <!-- Per-issue accent colour -->
+      <span
+        class="absolute left-0 top-3 bottom-3 w-1 rounded-r-full"
+        [style.background-color]="issueColor()"
+        aria-hidden="true"
+      ></span>
+
       <!-- Timer start/running button -->
       <button
         class="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/50 text-muted-foreground/80 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
@@ -119,6 +126,9 @@ export class IssueCardComponent {
 
   /** Project color (passed from parent) */
   readonly projectColor = input<string>('var(--color-primary)');
+
+  /** Per-issue accent colour (passed from parent; defaults to primary) */
+  readonly issueColor = input<string>('var(--color-primary)');
 
   /** Emitted when user clicks the start timer button */
   readonly startTimer = output<string>();

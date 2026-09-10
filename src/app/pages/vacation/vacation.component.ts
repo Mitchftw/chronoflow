@@ -15,6 +15,7 @@ import {
   SearchBarComponent,
   type SearchResult,
 } from '../../components/common/search-bar.component';
+import { PageHeaderComponent } from '../../components/common/page-header.component';
 import { formatJiraLocalIso } from '../../utils/datetime';
 
 /** Status of a single workday row in the preview / push pipeline. */
@@ -39,19 +40,10 @@ interface VacationDay {
 @Component({
   selector: 'app-vacation',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SearchBarComponent, RouterLink],
+  imports: [SearchBarComponent, RouterLink, PageHeaderComponent],
   host: { class: 'block max-w-4xl' },
   template: `
-    <header class="mb-7 flex items-center justify-between select-none">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-foreground/95">
-          Vacation
-        </h1>
-        <p class="mt-1.5 text-xs font-medium text-muted-foreground/80">
-          Bulk-log weekdays onto your Jira verlof ticket
-        </p>
-      </div>
-    </header>
+    <app-page-header title="Vacation" subtitle="Bulk-log weekdays onto your Jira verlof ticket" />
 
     <!-- No Jira connection warning -->
     @if (jiraService.connections().length === 0) {

@@ -12,6 +12,8 @@ export interface Issue {
   startTime: number | null;
   createdAt: number;
   date: string;
+  /** Optional explicit accent colour. When unset, one is derived from the id. */
+  color?: string | null;
 }
 
 export interface IssueCreate {
@@ -22,6 +24,7 @@ export interface IssueCreate {
   jiraIssueKey?: string | null;
   estimate?: number;
   date?: string;
+  color?: string | null;
 }
 
 export interface IssueUpdate {
@@ -36,4 +39,5 @@ export interface IssueUpdate {
   isRunning?: boolean;
   startTime?: number | null;
   date?: string;
+  color?: string | null;
 }

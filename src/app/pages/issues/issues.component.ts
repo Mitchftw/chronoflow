@@ -13,8 +13,10 @@ import { JiraService } from '../../services/jira.service';
 import { SearchBarComponent, type SearchResult } from '../../components/common/search-bar.component';
 import { IssueCardComponent } from '../../components/common/issue-card.component';
 import { IssueFormDialogComponent } from '../../components/common/issue-form-dialog.component';
+import { PageHeaderComponent } from '../../components/common/page-header.component';
 import type { Issue } from '../../models/issue';
 import type { Project } from '../../models/project';
+import { issueColor as resolveIssueColor } from '../../utils/colors';
 
 type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
 
@@ -25,26 +27,18 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
     SearchBarComponent,
     IssueCardComponent,
     IssueFormDialogComponent,
+    PageHeaderComponent,
   ],
   host: { class: 'block' },
   template: `
-    <header class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-foreground/95">Issues</h1>
-        <p class="mt-1.5 text-xs font-medium text-muted-foreground/80">
-          Track your work items and time
-        </p>
-      </div>
-      <button
-        class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-all duration-300 hover:bg-primary/95 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer self-start sm:self-auto"
-        (click)="showFormDialog.set(true)"
-      >
+    <app-page-header title="Issues" subtitle="Track your work items and time">
+      <button class="btn btn-primary" (click)="showFormDialog.set(true)">
         <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
         </svg>
         New Issue
       </button>
-    </header>
+    </app-page-header>
 
     <!-- Search Bar -->
     <div class="mb-5 relative z-20">
@@ -141,6 +135,7 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
             [issue]="issue"
             [projectName]="getProjectName(issue.projectId)"
             [projectColor]="getProjectColor(issue.projectId)"
+            [issueColor]="getIssueColor(issue)"
             (startTimer)="onStartTimer($event)"
             (delete)="onDeleteIssue($event)"
             (openInJira)="onOpenInJira($event)"
@@ -323,5 +318,9 @@ export class IssuesComponent {
   getProjectColor(projectId?: string): string {
     if (!projectId) return 'var(--color-primary)';
     return this.projects().find((p) => p.id === projectId)?.color ?? 'var(--color-primary)';
+  }
+
+  getIssueColor(issue: Issue): string {
+    return resolveIssueColor(issue);
   }
 }

@@ -7,17 +7,7 @@ import {
   computed,
 } from '@angular/core';
 import type { Project } from '../../models/project';
-
-const COLOR_PRESETS = [
-  '#3b82f6', // blue
-  '#22c55e', // green
-  '#a855f7', // purple
-  '#f97316', // orange
-  '#ef4444', // red
-  '#14b8a6', // teal
-  '#eab308', // yellow
-  '#ec4899', // pink
-];
+import { COLOR_PRESETS, DEFAULT_COLOR } from '../../utils/colors';
 
 @Component({
   selector: 'app-project-form-dialog',
@@ -112,7 +102,7 @@ export class ProjectFormDialogComponent {
 
   name = signal('');
   description = signal('');
-  color = signal('#3b82f6');
+  color = signal<string>(DEFAULT_COLOR);
 
   constructor() {
     // Initialize from input if editing
@@ -124,7 +114,7 @@ export class ProjectFormDialogComponent {
     if (p) {
       this.name.set(p.name);
       this.description.set(p.description || '');
-      this.color.set(p.color || '#3b82f6');
+      this.color.set(p.color || DEFAULT_COLOR);
     }
   }
 

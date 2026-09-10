@@ -91,7 +91,7 @@ export class DatabaseService {
     this._issues.set(issues);
   }
 
-  async createIssue(data: { title: string; description?: string; projectId?: string; status?: string; jiraIssueKey?: string | null; estimate?: number }): Promise<Issue> {
+  async createIssue(data: { title: string; description?: string; projectId?: string; status?: string; jiraIssueKey?: string | null; estimate?: number; color?: string | null }): Promise<Issue> {
     const issue = await this.ipc.createIssue(data);
     this._issues.update((list) => [...list, issue]);
     return issue;

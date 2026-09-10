@@ -2,6 +2,7 @@
 
 @theme {
   --font-sans: 'Outfit', 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -19,48 +20,50 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --radius: 0.75rem;
+  --radius: 0.875rem;
 }
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 224 40% 12%;
+    --background: 228 33% 98%;
+    --foreground: 228 28% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 224 40% 12%;
-    --primary: 246 80% 60%;
+    --card-foreground: 228 28% 12%;
+    --primary: 243 75% 59%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 20% 94%;
-    --secondary-foreground: 224 40% 12%;
-    --muted: 220 15% 90%;
-    --muted-foreground: 220 10% 46%;
-    --accent: 246 80% 60%;
+    --secondary: 228 24% 95%;
+    --secondary-foreground: 228 28% 16%;
+    --muted: 228 18% 92%;
+    --muted-foreground: 228 12% 45%;
+    --accent: 243 75% 59%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 350 80% 55%;
+    --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 92%;
-    --input: 220 15% 92%;
-    --ring: 246 80% 60%;
+    --border: 228 22% 90%;
+    --input: 228 22% 90%;
+    --ring: 243 75% 59%;
+    --shadow-color: 228 40% 30%;
   }
 
   .dark {
-    --background: 240 6% 14%;
-    --foreground: 240 5% 96%;
-    --card: 240 6% 19%;
-    --card-foreground: 240 5% 96%;
-    --primary: 246 80% 65%;
+    --background: 230 22% 9%;
+    --foreground: 220 22% 96%;
+    --card: 230 20% 13%;
+    --card-foreground: 220 22% 96%;
+    --primary: 243 82% 68%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 6% 23%;
-    --secondary-foreground: 240 5% 96%;
-    --muted: 240 6% 25%;
-    --muted-foreground: 240 5% 75%;
-    --accent: 246 80% 65%;
+    --secondary: 230 17% 18%;
+    --secondary-foreground: 220 22% 96%;
+    --muted: 230 16% 21%;
+    --muted-foreground: 225 14% 72%;
+    --accent: 243 82% 68%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 350 70% 48%;
+    --destructive: 0 66% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 6% 25%;
-    --input: 240 6% 25%;
-    --ring: 246 80% 65%;
+    --border: 230 16% 22%;
+    --input: 230 16% 22%;
+    --ring: 243 82% 68%;
+    --shadow-color: 230 60% 2%;
   }
 }
 
@@ -68,16 +71,33 @@
   * {
     @apply border-border;
   }
+  html,
   body {
     @apply bg-background text-foreground font-sans antialiased;
     overflow: hidden;
+  }
+  body {
+    /* Subtle ambient tint so the canvas never looks flat. */
+    background-image:
+      radial-gradient(1100px 600px at 12% -8%, hsl(var(--primary) / 0.10), transparent 60%),
+      radial-gradient(900px 520px at 105% 0%, hsl(var(--primary) / 0.06), transparent 55%);
+    background-attachment: fixed;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.28);
+    color: hsl(var(--foreground));
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring) / 0.65);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
   }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -85,12 +105,15 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.2);
+  background: hsl(var(--muted-foreground) / 0.22);
+  border: 3px solid transparent;
+  background-clip: content-box;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: hsl(var(--muted-foreground) / 0.38);
+  background-clip: content-box;
 }
 
 /* Electron draggable regions */
@@ -111,3 +134,43 @@ html.timer-window-active app-timer-window {
   background-color: transparent !important;
 }
 
+@layer components {
+  /* Shared surface for cards and panels */
+  .app-card {
+    @apply rounded-2xl border border-border/50 bg-card/70 backdrop-blur-md shadow-sm;
+    box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 8px 24px -18px hsl(var(--shadow-color) / 0.35);
+  }
+  .app-card-interactive {
+    @apply transition-all duration-300 hover:border-primary/30 hover:shadow-md;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap;
+  }
+  .btn-primary {
+    @apply bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:bg-primary/90;
+  }
+  .btn-secondary {
+    @apply border border-border/60 bg-secondary/40 text-foreground/90 hover:bg-secondary/70;
+  }
+  .btn-ghost {
+    @apply text-muted-foreground hover:bg-secondary/60 hover:text-foreground;
+  }
+  .btn-danger {
+    @apply bg-destructive text-destructive-foreground shadow-md shadow-destructive/25 hover:bg-destructive/90;
+  }
+  .btn-icon {
+    @apply flex size-9 items-center justify-center rounded-xl border border-border/50 text-muted-foreground transition-all duration-200 hover:border-primary/40 hover:text-primary hover:bg-primary/5 cursor-pointer active:scale-95;
+  }
+
+  /* Inputs */
+  .app-input {
+    @apply w-full rounded-xl border border-border/50 bg-background/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:border-transparent;
+  }
+
+  /* Small pill/badge */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider;
+  }
+}

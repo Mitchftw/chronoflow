@@ -3,6 +3,7 @@ import { DialogComponent } from './dialog.component';
 import { DatabaseService } from '../../services/database.service';
 import type { Issue } from '../../models/issue';
 import type { Project } from '../../models/project';
+import { COLOR_PRESETS, colorFromId } from '../../utils/colors';
 
 @Component({
   selector: 'app-issue-form-dialog',
@@ -119,6 +120,42 @@ import type { Project } from '../../models/project';
             />
           </div>
         </div>
+
+        <!-- Accent Colour -->
+        <div class="select-none">
+          <label class="mb-2.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            Accent Colour
+          </label>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              class="flex items-center justify-center size-7.5 rounded-full border border-border/40 transition-all hover:scale-110 cursor-pointer"
+              style="background: conic-gradient(from 180deg, #ef4444, #f97316, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444)"
+              [class.ring-2]="!color()"
+              [class.ring-offset-2]="!color()"
+              [class.ring-primary]="!color()"
+              [class.ring-offset-background]="!color()"
+              (click)="color.set('')"
+              aria-label="Automatic colour"
+              title="Automatic (derived from the issue)"
+            ></button>
+            @for (c of colors; track c) {
+              <button
+                type="button"
+                class="size-7.5 rounded-full transition-all hover:scale-110 shadow-sm border border-border/30 hover:border-foreground/20 cursor-pointer"
+                [style.background-color]="c"
+                [class.ring-2]="color() === c"
+                [class.ring-offset-2]="color() === c"
+                [class.ring-primary]="color() === c"
+                [class.ring-offset-background]="color() === c"
+                [class.scale-110]="color() === c"
+                (click)="color.set(c)"
+                [attr.aria-label]="'Select colour ' + c"
+                [attr.aria-current]="color() === c ? 'true' : undefined"
+              ></button>
+            }
+          </div>
+        </div>
       </div>
     </app-dialog>
   `,
@@ -141,6 +178,9 @@ export class IssueFormDialogComponent {
   /** Emitted when dialog is dismissed */
   readonly dismissed = output<void>();
 
+  /** Colour presets for the accent picker */
+  readonly colors = COLOR_PRESETS;
+
   /** Form fields */
   readonly title = signal('');
   readonly description = signal('');
@@ -148,6 +188,8 @@ export class IssueFormDialogComponent {
   readonly jiraIssueKey = signal('');
   readonly estimate = signal(0);
   readonly status = signal<'todo' | 'in_progress' | 'done'>('todo');
+  /** Empty string means "automatic" (derived from the issue id). */
+  readonly color = signal('');
 
   /** Form validity */
   readonly isValid = computed(() => this.title().trim().length > 0);
@@ -163,6 +205,7 @@ export class IssueFormDialogComponent {
         this.jiraIssueKey.set(issue.jiraIssueKey ?? '');
         this.estimate.set(issue.estimate);
         this.status.set(issue.status);
+        this.color.set(issue.color ?? '');
       }
     });
 
@@ -181,14 +224,13 @@ export class IssueFormDialogComponent {
     this.jiraIssueKey.set('');
     this.estimate.set(0);
     this.status.set('todo');
+    this.color.set('');
   }
 
   async onConfirm(): Promise<void> {
     if (!this.isValid()) return;
 
     const existing = this.editingIssue();
-    const now = Date.now();
-    const today = new Date().toISOString().slice(0, 10);
 
     if (existing) {
       // Update existing
@@ -199,29 +241,24 @@ export class IssueFormDialogComponent {
         jiraIssueKey: this.jiraIssueKey().trim() || undefined,
         estimate: this.estimate(),
         status: this.status(),
+        color: this.color() || null,
       });
       if (updated) {
         this.saved.emit(updated);
       }
     } else {
-      // Create new
-      const newIssue: Issue = {
-        id: crypto.randomUUID(),
+      // Create new — emit the canonical issue returned by the service, since
+      // it generates the real id/createdAt.
+      const created = await this.db.createIssue({
         title: this.title().trim(),
-        description: this.description().trim() || '',
+        description: this.description().trim(),
         projectId: this.projectId() || '',
         status: this.status(),
         jiraIssueKey: this.jiraIssueKey().trim() || null,
-        jiraConnectionId: null,
         estimate: this.estimate(),
-        timeSpent: 0,
-        isRunning: false,
-        startTime: null,
-        createdAt: now,
-        date: today,
-      };
-      await this.db.createIssue(newIssue);
-      this.saved.emit(newIssue);
+        color: this.color() || null,
+      });
+      this.saved.emit(created);
     }
 
     this.isOpen.set(false);

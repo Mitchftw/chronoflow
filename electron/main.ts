@@ -10,6 +10,13 @@ dotenv.config();
 if (process.env["IS_TEST"] === "true") {
   const testUserDataPath = path.join(app.getPath("temp"), "chronoflow-test-userdata");
   app.setPath("userData", testUserDataPath);
+  // Wipe any state a previous run left behind so the suite is deterministic
+  // (e.g. a timer left running at the end of the last run).
+  try {
+    fs.rmSync(testUserDataPath, { recursive: true, force: true });
+  } catch {
+    // Best-effort: a locked file just means we start from the old state.
+  }
 }
 
 // Dev builds (running from source) must NEVER touch the production
@@ -18,7 +25,10 @@ if (process.env["IS_TEST"] === "true") {
 // app — a dev instance can never wipe, lock or corrupt the production
 // database, no matter how it is launched (npm run dev, IDE, direct
 // electron .).
-if (!app.isPackaged) {
+// E2E tests keep their own throwaway userData (set above). Do not let the
+// dev-data override clobber it, otherwise every test run would share — and
+// pollute — the developer's live ChronoFlow-Dev database.
+if (!app.isPackaged && process.env["IS_TEST"] !== "true") {
   app.setPath(
     "userData",
     path.join(app.getPath("appData"), "ChronoFlow-Dev"),

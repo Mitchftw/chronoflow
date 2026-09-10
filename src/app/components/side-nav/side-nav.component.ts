@@ -12,50 +12,39 @@ export interface NavItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, RouterLinkActive],
   host: {
-    class: 'flex flex-col h-full bg-card/70 backdrop-blur-xl border-r border-border/40 transition-all duration-300 ease-in-out select-none',
+    class: 'flex flex-col h-full bg-card/60 backdrop-blur-xl border-r border-border/40 transition-all duration-300 ease-in-out select-none',
     '[class.w-64]': '!collapsed()',
-    '[class.w-16]': 'collapsed()',
+    '[class.w-20]': 'collapsed()',
   },
   template: `
-    <!-- Brand -->
-    <div class="flex items-center h-16 px-4 border-b border-border/30">
-      <div class="flex items-center gap-3 overflow-hidden">
-        <div class="flex-shrink-0 size-8 rounded-xl bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/25">
-          <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        @if (!collapsed()) {
-          <div class="flex flex-col">
-            <span class="font-bold text-sm tracking-tight text-foreground bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">TimeTracker</span>
-            <span class="text-[9px] text-primary/80 font-bold uppercase tracking-widest font-sans">Pro Edition</span>
-          </div>
-        }
-      </div>
-    </div>
-
     <!-- Nav items -->
-    <div class="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto">
+    <div class="flex-1 py-5 px-3 space-y-1.5 overflow-y-auto overflow-x-hidden">
       <div
-        class="mb-3 px-2.5 text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest transition-opacity duration-200"
+        class="mb-2 px-3 text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest transition-opacity duration-200"
         [class.opacity-0]="collapsed()"
         [class.opacity-100]="!collapsed()"
       >
-        Main Menu
+        Menu
       </div>
+
       @for (item of navItems(); track item.route) {
         <a
           [routerLink]="item.route"
-          routerLinkActive="bg-primary text-primary-foreground shadow-lg shadow-primary/25 font-semibold"
           #rla="routerLinkActive"
-          class="flex items-center w-full gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 group relative"
+          routerLinkActive="is-active"
+          class="group relative flex items-center w-full gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
           [class.justify-center]="collapsed()"
-          [class]="rla.isActive ? '' : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'"
+          [class]="rla.isActive
+            ? 'bg-primary/12 text-primary font-semibold'
+            : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'"
           [title]="collapsed() ? item.label : ''"
           [attr.aria-current]="rla.isActive ? 'page' : undefined"
         >
+          @if (rla.isActive && !collapsed()) {
+            <span class="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary"></span>
+          }
           <span
-            class="flex-shrink-0 transition-transform duration-300 flex items-center justify-center"
+            class="flex shrink-0 items-center justify-center transition-transform duration-200"
             [class.group-hover:scale-110]="!rla.isActive"
           >
             @switch (item.route) {
@@ -87,39 +76,41 @@ export interface NavItem {
             }
           </span>
           @if (!collapsed()) {
-            <span class="text-sm tracking-wide font-medium whitespace-nowrap">{{ item.label }}</span>
-          }
-          @if (rla.isActive && !collapsed()) {
-            <div class="absolute right-3.5 size-1.5 rounded-full bg-primary-foreground/60"></div>
+            <span class="truncate tracking-wide">{{ item.label }}</span>
           }
         </a>
       }
     </div>
 
     <!-- Settings & collapse footer -->
-    <div class="px-3 py-4 border-t border-border/30 bg-muted/10 space-y-1.5">
+    <div class="px-3 py-4 border-t border-border/30 space-y-1.5">
       <a
         [routerLink]="'/settings'"
-        routerLinkActive="bg-primary text-primary-foreground shadow-lg shadow-primary/25 font-semibold"
         #settingsRla="routerLinkActive"
-        class="flex items-center w-full gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 group"
+        routerLinkActive="is-active"
+        class="group relative flex items-center w-full gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
         [class.justify-center]="collapsed()"
-        [class]="settingsRla.isActive ? '' : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'"
+        [class]="settingsRla.isActive
+          ? 'bg-primary/12 text-primary font-semibold'
+          : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'"
         [title]="collapsed() ? 'Settings' : ''"
         [attr.aria-current]="settingsRla.isActive ? 'page' : undefined"
       >
-        <svg class="size-5 flex-shrink-0 transition-transform duration-300" [class.group-hover:rotate-45]="!settingsRla.isActive" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        @if (settingsRla.isActive && !collapsed()) {
+          <span class="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary"></span>
+        }
+        <svg class="size-5 shrink-0 transition-transform duration-300" [class.group-hover:rotate-45]="!settingsRla.isActive" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
         @if (!collapsed()) {
-          <span class="text-sm tracking-wide font-medium">Settings</span>
+          <span class="truncate tracking-wide">Settings</span>
         }
       </a>
 
       <button
         (click)="toggleCollapse.emit()"
-        class="flex items-center w-full gap-3 px-3 py-2 rounded-xl text-muted-foreground hover:bg-secondary/60 hover:text-foreground transition-all duration-300 mt-2 group"
+        class="flex items-center w-full gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary/60 hover:text-foreground transition-all duration-200 group"
         [class.justify-center]="collapsed()"
         [attr.aria-label]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
       >
@@ -133,7 +124,7 @@ export interface NavItem {
           </svg>
         }
         @if (!collapsed()) {
-          <span class="text-sm tracking-wide font-medium">Collapse</span>
+          <span class="truncate tracking-wide">Collapse</span>
         }
       </button>
     </div>

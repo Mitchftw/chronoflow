@@ -20,6 +20,7 @@ export interface Issue {
   startTime: number | null;
   createdAt: number;
   date: string;
+  color?: string | null;
 }
 
 export interface TimeEntry {

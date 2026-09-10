@@ -104,7 +104,7 @@ export class IpcService {
     return (await this.store?.get('issues')) ?? [];
   }
 
-  async createIssue(data: { title: string; description?: string; projectId?: string; status?: string; jiraIssueKey?: string | null; estimate?: number }): Promise<Issue> {
+  async createIssue(data: { title: string; description?: string; projectId?: string; status?: string; jiraIssueKey?: string | null; estimate?: number; color?: string | null }): Promise<Issue> {
     const issues = await this.getIssues();
     const issue: Issue = {
       id: crypto.randomUUID(),
@@ -120,6 +120,7 @@ export class IpcService {
       startTime: null,
       createdAt: Date.now(),
       date: new Date().toISOString().slice(0, 10),
+      color: data.color ?? null,
     };
     await this.store?.set('issues', [...issues, issue]);
     return issue;
