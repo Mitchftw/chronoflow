@@ -11,47 +11,47 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
     <div class="mb-4 flex items-center justify-between">
       <h2 class="text-lg font-bold text-foreground tracking-tight select-none">{{ listTitle() }}</h2>
       <button
-        class="inline-flex items-center gap-1.5 rounded-xl border border-border/50 bg-secondary/35 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-foreground/90 transition-all duration-200 hover:bg-secondary/75 cursor-pointer"
+        class="inline-flex items-center gap-1.5 rounded-xl border border-border/50 bg-secondary/35 px-3 py-1.5 text-xs font-bold text-foreground/90 transition-all duration-200 hover:bg-secondary/75 cursor-pointer"
         (click)="addManualEntry.emit()"
       >
         <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
         </svg>
-        Add Entry
+        Add entry
       </button>
     </div>
 
     @if (entries().length === 0) {
       <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/50 bg-card/20 py-12 w-full max-w-md mx-auto select-none">
-        <div class="flex size-12 items-center justify-center rounded-full bg-muted/30 mb-4 text-muted-foreground/60">
+        <div class="flex size-12 items-center justify-center rounded-full bg-muted/30 mb-4 text-muted-foreground">
           <svg class="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
         <p class="text-sm font-semibold text-foreground/80">{{ emptyMessage() }}</p>
-        <p class="mt-1 text-xs text-muted-foreground/60 text-center px-6 mb-4">Start a timer or add an entry manually</p>
+        <p class="mt-1 text-xs text-muted-foreground text-center px-6 mb-4">Start a timer or add an entry manually</p>
         <button
-          class="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-all duration-300 hover:bg-primary/95 cursor-pointer"
+          class="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground transition-all duration-300 hover:bg-primary/95 cursor-pointer"
           (click)="addManualEntry.emit()"
         >
           <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          Add Manual Entry
+          Add entry
         </button>
       </div>
     } @else {
-      <div class="overflow-hidden rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md shadow-sm">
+ <div class="overflow-hidden rounded-2xl border border-border/40 bg-card/65 shadow-sm">
         <div class="overflow-x-auto">
           <table class="w-full border-collapse">
             <thead>
               <tr class="border-b border-border/40 bg-muted/40 text-muted-foreground">
-                <th class="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider">Issue</th>
-                <th class="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider">Start</th>
-                <th class="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider">End</th>
-                <th class="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider">Duration</th>
-                <th class="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider">Note</th>
-                <th class="px-5 py-3.5 text-right text-[11px] font-bold uppercase tracking-wider">Actions</th>
+                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">Issue</th>
+                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">Start</th>
+                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">End</th>
+                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">Duration</th>
+                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">Note</th>
+                <th class="px-5 py-3.5 text-right text-[11px] font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-border/30">
@@ -71,19 +71,20 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
                     </span>
                   </td>
                   <td class="px-5 py-4 text-sm font-mono text-muted-foreground">{{ entry.startTime }}</td>
-                  <td class="px-5 py-4 text-sm font-mono text-muted-foreground">{{ entry.endTime ?? '—' }}</td>
+                  <td class="px-5 py-4 text-sm font-mono text-muted-foreground">{{ entry.endTime ?? '-' }}</td>
                   <td class="px-5 py-4 text-sm font-mono font-bold text-primary">
                     {{ formatDuration(entry) }}
                   </td>
                   <td class="max-w-48 truncate px-5 py-4 text-sm text-muted-foreground">
-                    {{ entry.note || '—' }}
+                    {{ entry.note || '-' }}
                   </td>
-                  <td class="px-5 py-4 text-right flex justify-end gap-1">
+                  <td class="px-5 py-4">
+                    <div class="flex justify-end gap-1">
                     <!-- Same play/running button as the issue cards: a filled
                          play triangle, or a pulsing dot on the entry that is
                          currently being tracked. -->
                     <button
-                      class="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/50 text-muted-foreground/80 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+                      class="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/50 text-muted-foreground transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
                       [class]="isActiveEntry(entry)
                         ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25'
                         : 'hover:border-primary hover:text-primary'"
@@ -131,6 +132,7 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
+                    </div>
                   </td>
                 </tr>
               }
@@ -158,7 +160,7 @@ export class TimeEntryListComponent {
     const label = this.dateLabel();
     if (!label) return 'Time Entries';
     if (label === 'Today' || label === 'Yesterday') return `${label}'s Time Entries`;
-    return `Time Entries — ${label}`;
+    return `Time entries for ${label}`;
   });
 
   readonly emptyMessage = computed(() => {
@@ -185,7 +187,7 @@ export class TimeEntryListComponent {
   }
 
   formatDuration(entry: TimeEntry): string {
-    if (!entry.endTime) return '—';
+    if (!entry.endTime) return '-';
     const [startH, startM] = entry.startTime.split(':').map(Number);
     const [endH, endM] = entry.endTime.split(':').map(Number);
     const diffMin = endH * 60 + endM - (startH * 60 + startM);

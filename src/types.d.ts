@@ -59,6 +59,38 @@ export interface JiraIssue {
   estimateMinutes?: number;
 }
 
+/** One row of the Backlog page (Jira issue assigned to the current user). */
+export interface BacklogIssue {
+  key: string;
+  summary: string;
+  /** Status name, e.g. "In Progress". */
+  status: string;
+  /** Jira status category: "new" | "indeterminate" | "done". */
+  statusCategory: string;
+  priority: string;
+  issueType: string;
+  projectKey: string;
+  projectName: string;
+  labels: string[];
+  estimateMinutes?: number;
+  /** Epoch ms of the last update; 0 when Jira did not return one. */
+  updated: number;
+  duedate?: string | null;
+}
+
+export interface BacklogProject {
+  key: string;
+  name: string;
+}
+
+export interface BacklogSprint {
+  id: number;
+  name: string;
+  state: string;
+  startDate: string | null;
+  boardName: string;
+}
+
 export interface JiraWorklog {
   issueKey: string;
   issueSummary: string;
@@ -113,6 +145,22 @@ declare global {
         getAccessibleResources: (accessToken: string) => Promise<IpcResponse & { resources?: JiraResource[] }>;
 
         search: (params: any) => Promise<IpcResponse>;
+        backlog: (params: {
+          projectKey?: string;
+          sprint?: string;
+        }) => Promise<
+          IpcResponse & {
+            issues?: BacklogIssue[];
+            sprintFallback?: boolean;
+            truncated?: boolean;
+          }
+        >;
+        backlogFilters: (params?: { projectKey?: string }) => Promise<
+          IpcResponse & {
+            projects?: BacklogProject[];
+            sprints?: BacklogSprint[];
+          }
+        >;
         addWorklog: (params: any) => Promise<IpcResponse>;
         updateWorklog: (params: any) => Promise<IpcResponse>;
         deleteWorklog: (params: any) => Promise<IpcResponse>;
@@ -165,6 +213,16 @@ declare global {
         onPowerLock: (callback: () => void) => () => void;
         onPowerUnlock: (callback: () => void) => () => void;
       };
+      media: {
+        setEnabled: (enabled: boolean) => Promise<{ success: boolean; state?: MediaState }>;
+        getState: () => Promise<{ success: boolean; state?: MediaState }>;
+        command: (cmd: 'toggle' | 'next' | 'prev') => void;
+        onState: (callback: (state: MediaState) => void) => () => void;
+      };
+      agents: {
+        setEnabled: (enabled: boolean) => Promise<{ success: boolean; state?: AgentsState }>;
+        onState: (callback: (state: AgentsState) => void) => () => void;
+      };
       updater: {
         checkForUpdates: () => Promise<IpcResponse>;
         quitAndInstall: () => Promise<IpcResponse>;
@@ -172,4 +230,61 @@ declare global {
       onDeepLink: (callback: (url: string) => void) => () => void;
     };
   }
+}
+
+export interface MediaState {
+  active: boolean;
+  status?: 'playing' | 'paused' | 'stopped';
+  title?: string;
+  artist?: string;
+  album?: string;
+  app?: string;
+  cover?: string;
+  coverMime?: string;
+  positionMs?: number;
+  durationMs?: number;
+  canNext?: boolean;
+  canPrev?: boolean;
+}
+
+export interface UsageWindow {
+  usedPercent: number;
+  windowMinutes: number;
+  /** Unix seconds. */
+  resetsAt: number;
+}
+
+export interface CodexState {
+  available: boolean;
+  primary?: UsageWindow;
+  secondary?: UsageWindow;
+  working?: boolean;
+  updatedAt?: number;
+}
+
+export interface ClaudeState {
+  available: boolean;
+  primary?: UsageWindow;
+  secondary?: UsageWindow;
+  updatedAt?: number;
+  scriptPath: string;
+}
+
+export interface AgentSession {
+  id: string;
+  agent: 'claude' | 'codex';
+  project: string;
+  working: boolean;
+  activity: string;
+  detail?: string;
+  added: number;
+  removed: number;
+  toolCalls: number;
+  updatedAt: number;
+}
+
+export interface AgentsState {
+  codex: CodexState;
+  claude: ClaudeState;
+  sessions: AgentSession[];
 }

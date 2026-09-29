@@ -52,7 +52,7 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
     <!-- Filters -->
     <div class="mb-6 flex flex-wrap items-center gap-3 select-none">
       <!-- Status filter -->
-      <div class="flex items-center gap-1 rounded-xl border border-border/40 bg-card/65 backdrop-blur-md p-1 shadow-sm">
+ <div class="flex items-center gap-1 rounded-xl border border-border/40 bg-card/65 p-1 shadow-sm">
         @for (option of statusOptions; track option.value) {
           <button
             class="rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer"
@@ -72,14 +72,14 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
           <select
             [value]="projectFilter()"
             (change)="projectFilter.set($any($event.target).value)"
-            class="appearance-none rounded-xl border border-border/40 bg-card/65 backdrop-blur-md pl-4 pr-10 py-2.5 text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm cursor-pointer"
+            class="appearance-none rounded-xl border border-border/40 bg-card/65 pl-4 pr-10 py-2.5 text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm cursor-pointer"
           >
             <option value="">All Projects</option>
             @for (project of projects(); track project.id) {
               <option [value]="project.id">{{ project.name }}</option>
             }
           </select>
-          <div class="absolute inset-y-0 right-3 flex items-center pointer-events-none text-muted-foreground/60">
+          <div class="absolute inset-y-0 right-3 flex items-center pointer-events-none text-muted-foreground">
             <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
@@ -88,7 +88,7 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
       }
 
       <!-- Result count -->
-      <span class="ml-auto text-xs font-semibold text-muted-foreground/70">
+      <span class="ml-auto text-xs font-semibold text-muted-foreground">
         {{ filteredIssues().length }} issue{{ filteredIssues().length !== 1 ? 's' : '' }}
       </span>
     </div>
@@ -105,7 +105,7 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
     <!-- Empty state -->
     @if (!loading() && filteredIssues().length === 0) {
       <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/50 bg-card/25 py-16 text-center select-none">
-        <div class="flex size-12 items-center justify-center rounded-full bg-muted/40 mb-4 text-muted-foreground/60">
+        <div class="flex size-12 items-center justify-center rounded-full bg-muted/40 mb-4 text-muted-foreground">
           <svg class="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
@@ -113,7 +113,7 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
         <p class="text-sm font-semibold text-foreground/80">
           {{ searchQuery() || projectFilter() || statusFilter() !== 'all' ? 'No issues match your filters' : 'No issues tracked yet' }}
         </p>
-        <p class="mt-1 text-xs text-muted-foreground/50 max-w-sm px-6">
+        <p class="mt-1 text-xs text-muted-foreground max-w-sm px-6">
           {{ searchQuery() || projectFilter() || statusFilter() !== 'all' ? 'Adjust your search queries or select a different filter category' : 'Start organizing your tasks and work items by creating your very first issue' }}
         </p>
         @if (!searchQuery() && projectFilter() === '' && statusFilter() === 'all') {

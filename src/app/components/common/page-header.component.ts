@@ -13,7 +13,7 @@ import { Component, ChangeDetectionStrategy, input } from '@angular/core';
       <div class="min-w-0">
         <h1 class="text-2xl font-bold tracking-tight text-foreground">{{ title() }}</h1>
         @if (subtitle()) {
-          <p class="mt-1.5 text-xs font-medium text-muted-foreground/80">{{ subtitle() }}</p>
+          <p class="mt-1.5 text-xs font-medium text-muted-foreground">{{ subtitle() }}</p>
         }
       </div>
       <div class="flex flex-wrap items-center gap-3 sm:justify-end">

@@ -3,7 +3,7 @@ import axios, { AxiosError } from "axios";
 import { logger } from "../utils/logger";
 import * as dbService from "../db-service";
 import { randomUUID } from "crypto";
-import type { JiraConnection } from "../../src/types";
+import type { JiraConnection, BacklogSprint } from "../../src/types";
 
 /**
  * Helper function to extract detailed error information from HTTP responses
@@ -688,6 +688,202 @@ export function registerJiraHandlers() {
       return { success: true, issues };
     } catch (error: any) {
       const errorMessage = handleHttpError(error, "jira:load-issues");
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  // ── Backlog ──
+
+  /**
+   * Build the JQL for the backlog. Always scoped to the signed-in user;
+   * project and sprint are optional filters. Returns the clause pieces so a
+   * sprint-less site can retry without the sprint restriction.
+   */
+  function buildBacklogJql(params: {
+    projectKey?: string;
+    sprint?: string;
+  }): { clauses: string[]; sprintClause: string | null } {
+    const clauses = ["assignee = currentUser()", "resolution = Unresolved"];
+
+    const projectKey =
+      typeof params.projectKey === "string" ? params.projectKey.trim() : "";
+    if (projectKey) {
+      // Project keys are alphanumeric + underscore; reject anything else
+      // rather than interpolating user input into JQL.
+      if (!/^[A-Za-z0-9_]+$/.test(projectKey)) {
+        throw new Error("Invalid project key");
+      }
+      clauses.push(`project = "${projectKey}"`);
+    }
+
+    const sprint = params.sprint;
+    let sprintClause: string | null = null;
+    if (!sprint || sprint === "current") {
+      sprintClause = "sprint in openSprints()";
+    } else if (sprint !== "all") {
+      const id = Number(sprint);
+      if (!Number.isInteger(id)) throw new Error("Invalid sprint");
+      sprintClause = `sprint = ${id}`;
+    }
+
+    return { clauses, sprintClause };
+  }
+
+  const BACKLOG_FIELDS =
+    "key,summary,status,priority,issuetype,project,labels,timeoriginalestimate,updated,duedate";
+
+  /** Issues assigned to the current user, filtered by project and sprint. */
+  ipcMain.handle("jira:backlog", async (_, params) => {
+    try {
+      const connId = params.connectionId || params.id;
+      if (params.authType === "oauth" && connId) {
+        params.accessToken = await getOrRefreshAccessToken(connId, params.accessToken);
+      }
+      const { baseUrl, headers } = getJiraRequestConfig(params);
+
+      const { clauses, sprintClause } = buildBacklogJql(params);
+      const orderBy = " ORDER BY updated DESC";
+      const baseJql = clauses.join(" AND ");
+
+      const run = (jql: string) =>
+        axios.get(`${baseUrl}/rest/api/3/search/jql`, {
+          params: { jql, maxResults: 100, fields: BACKLOG_FIELDS },
+          headers,
+        });
+
+      let response;
+      let sprintFallback = false;
+      try {
+        response = await run(
+          sprintClause ? `${baseJql} AND ${sprintClause}${orderBy}` : baseJql + orderBy,
+        );
+      } catch (err: any) {
+        // Sites without the agile sprint field reject the JQL entirely.
+        // Retry once without the sprint clause so the page still renders.
+        if (!sprintClause || err?.response?.status !== 400) throw err;
+        sprintFallback = true;
+        response = await run(baseJql + orderBy);
+      }
+
+      const issues = (response.data.issues || []).map((issue: any) => {
+        const f = issue.fields || {};
+        const estimateSeconds = f.timeoriginalestimate;
+        return {
+          key: issue.key,
+          summary: f.summary ?? "",
+          status: f.status?.name ?? "",
+          statusCategory: f.status?.statusCategory?.key ?? "new",
+          priority: f.priority?.name ?? "",
+          issueType: f.issuetype?.name ?? "",
+          projectKey: f.project?.key ?? "",
+          projectName: f.project?.name ?? "",
+          labels: Array.isArray(f.labels) ? f.labels : [],
+          estimateMinutes: estimateSeconds
+            ? Math.round(estimateSeconds / 60)
+            : undefined,
+          updated: f.updated ? Date.parse(f.updated) || 0 : 0,
+          duedate: f.duedate ?? null,
+        };
+      });
+
+      return {
+        success: true,
+        issues,
+        sprintFallback,
+        truncated: response.data.isLast === false,
+      };
+    } catch (error: any) {
+      const errorMessage = handleHttpError(error, "jira:backlog");
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  /** Projects + sprints used by the backlog filter dropdowns. */
+  ipcMain.handle("jira:backlog-filters", async (_, params) => {
+    try {
+      const connId = params.connectionId || params.id;
+      if (params.authType === "oauth" && connId) {
+        params.accessToken = await getOrRefreshAccessToken(connId, params.accessToken);
+      }
+      const { baseUrl, headers } = getJiraRequestConfig(params);
+
+      let projects: Array<{ key: string; name: string }> = [];
+      try {
+        const res = await axios.get(`${baseUrl}/rest/api/3/project/search`, {
+          params: { maxResults: 100, orderBy: "key" },
+          headers,
+        });
+        const values = res.data.values ?? (Array.isArray(res.data) ? res.data : []);
+        projects = values
+          .filter((p: any) => p?.key)
+          .map((p: any) => ({ key: p.key, name: p.name || p.key }));
+      } catch (err) {
+        // Project list is optional; the filter row just hides it.
+        logger.warn("[jira:backlog-filters] project list unavailable:", err);
+      }
+
+      let sprints: BacklogSprint[] = [];
+      try {
+        const boardRes = await axios.get(`${baseUrl}/rest/agile/1.0/board`, {
+          params: { maxResults: 50 },
+          headers,
+        });
+        let boards: any[] = boardRes.data.values ?? [];
+
+        // Scope sprints to the selected project when its boards are known.
+        const projectKey =
+          typeof params.projectKey === "string" ? params.projectKey.trim() : "";
+        if (projectKey) {
+          const scoped = boards.filter((b) => b?.location?.projectKey === projectKey);
+          if (scoped.length > 0) boards = scoped;
+        }
+        boards = boards.slice(0, 10);
+
+        const perBoard = await Promise.all(
+          boards.map((board) =>
+            axios
+              .get(`${baseUrl}/rest/agile/1.0/board/${board.id}/sprint`, {
+                params: { state: "active,future,closed", maxResults: 100 },
+                headers,
+              })
+              .then((r) =>
+                (r.data.values ?? []).map((s: any) => ({
+                  id: s.id,
+                  name: s.name ?? `Sprint ${s.id}`,
+                  state: s.state ?? "",
+                  startDate: s.startDate ?? null,
+                  boardName: board.name ?? "",
+                })),
+              )
+              .catch(() => []),
+          ),
+        );
+
+        const seen = new Set<number>();
+        for (const list of perBoard) {
+          for (const s of list) {
+            if (!seen.has(s.id)) {
+              seen.add(s.id);
+              sprints.push(s);
+            }
+          }
+        }
+
+        const rank: Record<string, number> = { active: 0, future: 1, closed: 2 };
+        sprints.sort(
+          (a, b) =>
+            (rank[a.state] ?? 3) - (rank[b.state] ?? 3) ||
+            String(b.startDate ?? "").localeCompare(String(a.startDate ?? "")),
+        );
+        sprints = sprints.slice(0, 40);
+      } catch (err) {
+        // No agile access → the UI keeps only the Current/All sprint options.
+        logger.warn("[jira:backlog-filters] sprint list unavailable:", err);
+      }
+
+      return { success: true, projects, sprints };
+    } catch (error: any) {
+      const errorMessage = handleHttpError(error, "jira:backlog-filters");
       return { success: false, error: errorMessage };
     }
   });

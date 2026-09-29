@@ -19,7 +19,7 @@ import { Component, ChangeDetectionStrategy, input, output, model, HostBinding }
 
         <!-- Dialog panel -->
         <div
-          class="relative z-10 w-[calc(100%-2rem)] max-w-lg rounded-3xl border border-border/45 bg-card/95 backdrop-blur-xl p-7 shadow-2xl animate-in fade-in zoom-in-95 duration-300"
+          class="relative z-10 w-[calc(100%-2rem)] max-w-lg rounded-3xl border border-border/45 bg-card/95 p-7 shadow-2xl animate-in fade-in zoom-in-95 duration-300"
           role="dialog"
           [attr.aria-modal]="true"
           [attr.aria-label]="title()"
@@ -30,7 +30,7 @@ import { Component, ChangeDetectionStrategy, input, output, model, HostBinding }
               <h2 class="text-xl font-bold tracking-tight text-foreground/95">{{ title() }}</h2>
               @if (closable()) {
                 <button
-                  class="flex size-8 items-center justify-center rounded-xl text-muted-foreground/70 hover:bg-secondary/80 hover:text-foreground transition-all duration-200 cursor-pointer"
+                  class="flex size-8 items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-all duration-200 cursor-pointer"
                   (click)="closeDialog()"
                   aria-label="Close dialog"
                 >
@@ -52,7 +52,7 @@ import { Component, ChangeDetectionStrategy, input, output, model, HostBinding }
             <div class="mt-7 flex items-center justify-end gap-3 border-t border-border/30 pt-5">
               @if (cancelLabel()) {
                 <button
-                  class="inline-flex items-center justify-center rounded-xl border border-border/50 bg-secondary/35 px-4.5 py-2.5 text-xs font-bold uppercase tracking-wider text-foreground/90 transition-all duration-200 hover:bg-secondary/75 cursor-pointer"
+                  class="inline-flex items-center justify-center rounded-xl border border-border/50 bg-secondary/35 px-4.5 py-2.5 text-xs font-bold text-foreground/90 transition-all duration-200 hover:bg-secondary/75 cursor-pointer"
                   (click)="closeDialog()"
                 >
                   {{ cancelLabel() }}
@@ -60,7 +60,7 @@ import { Component, ChangeDetectionStrategy, input, output, model, HostBinding }
               }
               @if (confirmLabel()) {
                 <button
-                  class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-all duration-300 hover:bg-primary/95 hover:shadow-lg hover:shadow-primary/20 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground transition-all duration-300 hover:bg-primary/95 hover:shadow-lg hover:shadow-primary/20 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                   [disabled]="confirmDisabled()"
                   (click)="confirm.emit()"
                 >

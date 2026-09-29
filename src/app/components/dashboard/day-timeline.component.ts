@@ -78,13 +78,13 @@ interface TimelineGap {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block select-none' },
   template: `
-    <section class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md shadow-sm overflow-hidden">
+    <section class="rounded-2xl border border-border/40 bg-card/65 shadow-sm overflow-hidden">
       <!-- Header / summary -->
       <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-border/30">
         <div class="flex items-center gap-2.5">
-          <span class="text-xs font-bold uppercase tracking-widest text-muted-foreground/70">Day Timeline</span>
+          <span class="text-xs font-bold text-muted-foreground">Day timeline</span>
           @if (isToday()) {
-            <span class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
               <span class="size-1.5 rounded-full bg-primary animate-pulse"></span>
               Live
             </span>
@@ -96,16 +96,16 @@ interface TimelineGap {
             <svg class="size-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Tracked <b class="text-foreground">{{ trackedLabel() }}</b>
+            Tracked <b class="font-mono font-semibold tabular-nums text-foreground">{{ trackedLabel() }}</b>
           </span>
           <span class="flex items-center gap-1.5">
             <svg class="size-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
             </svg>
-            Gaps <b class="text-foreground">{{ gapLabel() }}</b>
+            Gaps <b class="font-mono font-semibold tabular-nums text-foreground">{{ gapLabel() }}</b>
           </span>
           @if (rangeLabel()) {
-            <span class="font-mono text-muted-foreground/70">{{ rangeLabel() }}</span>
+            <span class="font-mono text-muted-foreground">{{ rangeLabel() }}</span>
           }
         </div>
       </div>
@@ -115,7 +115,7 @@ interface TimelineGap {
         @for (hour of hours(); track hour.min) {
           @if (hour.showLabel) {
             <span
-              class="absolute top-0 -translate-x-1/2 text-[10px] font-mono font-semibold text-muted-foreground/45"
+              class="absolute top-0 -translate-x-1/2 text-[10px] font-mono font-semibold text-muted-foreground"
               [style.left.%]="hour.pct"
             >{{ hour.label }}</span>
           }
@@ -175,7 +175,7 @@ interface TimelineGap {
               <span class="flex min-w-0 flex-col justify-center h-full pl-2.5 pr-2">
                 <span class="truncate text-[11px] font-bold leading-tight text-foreground/95">{{ block.label }}</span>
                 @if (block.wide) {
-                  <span class="truncate text-[9px] font-mono font-semibold leading-tight text-foreground/55">{{ block.durationLabel }}</span>
+                  <span class="truncate text-[10px] font-mono font-semibold leading-tight text-muted-foreground">{{ block.durationLabel }}</span>
                 }
               </span>
               @if (block.active) {
@@ -191,8 +191,8 @@ interface TimelineGap {
         <!-- Empty state -->
         @if (blocks().length === 0) {
           <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <p class="text-xs font-semibold text-muted-foreground/60">
-              Nothing tracked — click a gap to add an entry
+            <p class="text-xs font-semibold text-muted-foreground">
+              Nothing tracked. Click a gap to add an entry.
             </p>
           </div>
         }
@@ -202,7 +202,7 @@ interface TimelineGap {
       @if (legend().length > 0) {
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 pb-4">
           @for (item of legend(); track item.id) {
-            <span class="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground/80">
+            <span class="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
               <span class="size-2.5 rounded-full" [style.background-color]="item.color" aria-hidden="true"></span>
               <span class="max-w-[16rem] truncate">{{ item.label }}</span>
             </span>
@@ -334,11 +334,11 @@ export class DayTimelineComponent implements OnInit, OnDestroy {
       const label = issue
         ? issue.jiraIssueKey || issue.title
         : interval.entry.issueId.slice(0, 8);
-      const range = `${formatHm(interval.start)} – ${formatHm(interval.end)}`;
-      const tooltipBase = `${issue ? this.issueLabel(issue) : label} · ${range} · ${this.formatDuration(duration)}`;
+      const range = `${formatHm(interval.start)} - ${formatHm(interval.end)}`;
+      const tooltipBase = `${issue ? this.issueLabel(issue) : label}, ${range}, ${this.formatDuration(duration)}`;
       const tooltip = interval.entry.note
-        ? `${tooltipBase} — ${interval.entry.note}`
-        : tooltipBase;
+        ? `${tooltipBase}. ${interval.entry.note}`
+        : `${tooltipBase}.`;
 
       return {
         entry: interval.entry,
@@ -394,7 +394,7 @@ export class DayTimelineComponent implements OnInit, OnDestroy {
       minutes,
       left: ((start - windowStart) / span) * 100,
       width: ((minutes / span) * 100),
-      tooltip: `Untracked ${formatHm(start)} – ${formatHm(end)} · ${this.formatDuration(minutes)} — click to add`,
+      tooltip: `Untracked ${formatHm(start)} - ${formatHm(end)}, ${this.formatDuration(minutes)}. Click to add.`,
     };
   }
 
@@ -413,7 +413,7 @@ export class DayTimelineComponent implements OnInit, OnDestroy {
     if (iv.length === 0) return '';
     const first = Math.min(...iv.map((i) => i.start));
     const last = Math.max(...iv.map((i) => i.end));
-    return `First ${formatHm(first)} · Last ${formatHm(last)}`;
+    return `First ${formatHm(first)}, last ${formatHm(last)}`;
   });
 
   readonly legend = computed(() => {

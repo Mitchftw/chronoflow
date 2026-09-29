@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAccessibleResources: (accessToken: string) =>
       ipcRenderer.invoke("jira:get-accessible-resources", accessToken),
     search: (params: any) => ipcRenderer.invoke("jira:search", params),
+    backlog: (params: any) => ipcRenderer.invoke("jira:backlog", params),
+    backlogFilters: (params: any) => ipcRenderer.invoke("jira:backlog-filters", params),
     addWorklog: (params: any) => ipcRenderer.invoke("jira:add-worklog", params),
     updateWorklog: (params: any) => ipcRenderer.invoke("jira:update-worklog", params),
     deleteWorklog: (params: any) => ipcRenderer.invoke("jira:delete-worklog", params),
@@ -145,6 +147,29 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.send("timer-window:set-ignore-mouse", ignore),
     resize: (width: number, height: number) =>
       ipcRenderer.invoke("timer-window:resize", { width, height }),
+  },
+
+  media: {
+    setEnabled: (enabled: boolean) =>
+      ipcRenderer.invoke("media:set-enabled", enabled),
+    getState: () => ipcRenderer.invoke("media:get-state"),
+    command: (cmd: "toggle" | "next" | "prev") =>
+      ipcRenderer.send("media:command", cmd),
+    onState: (callback: (state: any) => void) => {
+      const subscription = (_event: any, state: any) => callback(state);
+      ipcRenderer.on("media:state", subscription);
+      return () => ipcRenderer.removeListener("media:state", subscription);
+    },
+  },
+
+  agents: {
+    setEnabled: (enabled: boolean) =>
+      ipcRenderer.invoke("agents:set-enabled", enabled),
+    onState: (callback: (state: any) => void) => {
+      const subscription = (_event: any, state: any) => callback(state);
+      ipcRenderer.on("agents:state", subscription);
+      return () => ipcRenderer.removeListener("agents:state", subscription);
+    },
   },
 
   updater: {

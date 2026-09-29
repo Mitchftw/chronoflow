@@ -12,7 +12,7 @@ export interface NavItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, RouterLinkActive],
   host: {
-    class: 'flex flex-col h-full bg-card/60 backdrop-blur-xl border-r border-border/40 transition-all duration-300 ease-in-out select-none',
+    class: 'flex flex-col h-full bg-card/60 border-r border-border/40 transition-all duration-300 ease-in-out select-none',
     '[class.w-64]': '!collapsed()',
     '[class.w-20]': 'collapsed()',
   },
@@ -20,7 +20,7 @@ export interface NavItem {
     <!-- Nav items -->
     <div class="flex-1 py-5 px-3 space-y-1.5 overflow-y-auto overflow-x-hidden">
       <div
-        class="mb-2 px-3 text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest transition-opacity duration-200"
+        class="mb-2 px-3 text-[10px] font-bold text-muted-foreground transition-opacity duration-200"
         [class.opacity-0]="collapsed()"
         [class.opacity-100]="!collapsed()"
       >
@@ -56,6 +56,11 @@ export interface NavItem {
               @case ('/issues') {
                 <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              }
+              @case ('/backlog') {
+                <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75Z" />
                 </svg>
               }
               @case ('/projects') {
@@ -144,6 +149,11 @@ export class SideNavComponent {
       route: '/issues',
       label: 'Issues',
       icon: `<svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>`,
+    },
+    {
+      route: '/backlog',
+      label: 'Backlog',
+      icon: `<svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75Z" /></svg>`,
     },
     {
       route: '/projects',

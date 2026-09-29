@@ -1,13 +1,19 @@
-import { Component, ChangeDetectionStrategy, input, output, inject, signal, ElementRef, viewChild } from '@angular/core';
+import { Component, ChangeDetectionStrategy, input, output, inject, signal, effect, untracked, DestroyRef, ElementRef, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { IpcService } from '../../services/ipc.service';
 import { SearchBarComponent, type SearchResult } from '../common/search-bar.component';
 import type { Issue } from '../../models/issue';
+import { SettingsService } from '../../services/settings.service';
+import { MediaService } from '../../droplets/media.service';
+import { MediaPanelComponent } from '../../droplets/media-panel.component';
+import { AgentsService } from '../../droplets/agents.service';
+import { AgentsPanelComponent } from '../../droplets/agents-panel.component';
 
 @Component({
   selector: 'app-notch-timer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SearchBarComponent, FormsModule],
+  imports: [SearchBarComponent, FormsModule, NgTemplateOutlet, DecimalPipe, MediaPanelComponent, AgentsPanelComponent],
   host: {
     class: 'block transition-[width,height] duration-300 ease-out',
     '[style.width.px]': 'width()',
@@ -31,6 +37,43 @@ import type { Issue } from '../../models/issue';
         (mousedown)="onResizeStart($event, 'right')"
       ></div>
 
+      <!-- Droplet chips (shared by the running and idle rows) -->
+      <ng-template #dropletChips>
+        @if (media.enabled() && media.hasSession()) {
+          <button
+            class="relative flex size-5.5 items-center justify-center overflow-hidden rounded-full border transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+            [class]="panel() === 'media' ? 'border-primary/60 bg-primary/20' : 'border-white/15 bg-white/5'"
+            (click)="togglePanel('media')"
+            [title]="media.title()"
+            aria-label="Toggle now playing"
+          >
+            @if (media.coverUrl(); as cover) {
+              <img [src]="cover" alt="" class="size-full object-cover" [class.opacity-60]="!media.isPlaying()" />
+            } @else {
+              <svg class="size-3 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19a3 3 0 11-6 0 3 3 0 016 0zm12-3a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            }
+          </button>
+        }
+        @if (agents.enabled() && agents.hasData()) {
+          <button
+            class="flex h-5.5 min-w-5.5 items-center justify-center rounded-full border px-1.5 text-[9px] font-bold tabular-nums transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+            [class]="panel() === 'agents' ? 'border-primary/60 bg-primary/20 text-white' : 'border-white/15 bg-white/5 text-white/80'"
+            (click)="togglePanel('agents')"
+            title="Agent usage (Codex / Claude)"
+            aria-label="Toggle agent usage"
+          >
+            @if (agents.anyWorking()) {
+              <span class="mr-1 size-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            }
+            @if (agents.peak() > 0 || !agents.anyWorking()) {
+              {{ agents.peak() | number: '1.0-0' }}%
+            }
+          </button>
+        }
+      </ng-template>
+
       <!-- Top Row: Active Timer or Search Bar -->
       <div class="flex h-[38px] w-full items-center justify-between gap-3 shrink-0">
         @if (isRunning()) {
@@ -49,19 +92,20 @@ import type { Issue } from '../../models/issue';
               </svg>
             </div>
             @if (issueName()) {
-              <span class="max-w-28 truncate text-[10px] font-bold uppercase tracking-wider text-zinc-300">{{ issueName() }}</span>
+              <span class="max-w-28 truncate text-[10px] font-bold text-zinc-300">{{ issueName() }}</span>
             } @else {
-              <span class="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Tracking</span>
+              <span class="text-[10px] font-bold text-zinc-400">Tracking</span>
             }
           </div>
 
           <!-- Center: Time -->
-          <div class="font-mono text-[13px] font-bold tracking-widest text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.45)]">
+          <div class="font-mono text-[13px] font-bold text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.45)]">
             {{ formattedTime() }}
           </div>
 
           <!-- Right: Action Controls -->
           <div class="flex items-center gap-1.5 no-drag">
+            <ng-container *ngTemplateOutlet="dropletChips" />
             <button
               class="flex size-5.5 items-center justify-center rounded-full bg-red-500/90 text-white transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-red-500/20 hover:bg-red-500 cursor-pointer"
               (click)="handleStop()"
@@ -109,6 +153,7 @@ import type { Issue } from '../../models/issue';
             </div>
             <!-- Action Controls -->
             <div class="flex items-center gap-1.5 no-drag shrink-0">
+            <ng-container *ngTemplateOutlet="dropletChips" />
               <button
                 class="flex size-5.5 items-center justify-center rounded-full bg-white/5 text-white/70 transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-white/15 hover:text-white cursor-pointer"
                 (click)="expand.emit()"
@@ -134,6 +179,16 @@ import type { Issue } from '../../models/issue';
         }
       </div>
 
+      <!-- Droplet panels -->
+      @if (panel() && !isStopping() && !dropdownOpen()) {
+        <div class="mt-1 w-full border-t border-white/5 pt-3">
+          @switch (panel()) {
+            @case ('media') { <app-media-panel /> }
+            @case ('agents') { <app-agents-panel /> }
+          }
+        </div>
+      }
+
       <!-- Bottom Row: Note Entry Section (Expanded) -->
       @if (isStopping()) {
         <div class="mt-1 flex-1 w-full flex flex-col gap-2 py-1 no-drag border-t border-white/5 pt-2">
@@ -146,16 +201,16 @@ import type { Issue } from '../../models/issue';
             (keydown.escape)="cancelStop()"
           ></textarea>
           <div class="flex items-center justify-between pb-1">
-             <span class="text-[9px] text-zinc-500 font-bold uppercase tracking-widest px-1">Timesheet Note</span>
+             <span class="text-[9px] text-zinc-500 font-bold px-1">Timesheet Note</span>
              <div class="flex items-center gap-1.5">
                <button
-                  class="text-[9px] font-bold uppercase tracking-wider text-zinc-400 hover:text-white transition-colors cursor-pointer px-2"
+                  class="text-[9px] font-bold text-zinc-400 hover:text-white transition-colors cursor-pointer px-2"
                   (click)="cancelStop()"
                 >
                   Cancel
                 </button>
                 <button
-                  class="rounded-lg bg-primary px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-primary-foreground shadow-md shadow-primary/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                  class="rounded-lg bg-primary px-3 py-1 text-[9px] font-bold text-primary-foreground shadow-md shadow-primary/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
                   (click)="confirmStop()"
                 >
                   Save & Stop
@@ -169,6 +224,23 @@ import type { Issue } from '../../models/issue';
 })
 export class NotchTimerComponent {
   private ipc = inject(IpcService);
+  protected media = inject(MediaService);
+  protected agents = inject(AgentsService);
+  private settings = inject(SettingsService);
+  private lastSettingsSync = 0;
+
+  constructor() {
+    // The main window installs/removes droplets; pick that up without needing a hover.
+    const poll = setInterval(() => void this.settings.load(), 3000);
+    inject(DestroyRef).onDestroy(() => clearInterval(poll));
+
+    // The agents page grows/shrinks with the number of live sessions.
+    effect(() => {
+      this.agents.sessions().length;
+      if (untracked(() => this.panel()) === 'agents') untracked(() => this.syncWindow());
+    });
+  }
+
   private noteArea = viewChild<ElementRef<HTMLTextAreaElement>>('noteArea');
 
   isRunning = input(false);
@@ -185,6 +257,9 @@ export class NotchTimerComponent {
   width = signal(324);
   height = signal(38);
   isStopping = signal(false);
+  /** Droplet page (media) expanded under the top row. */
+  panel = signal<'media' | 'agents' | null>(null);
+  dropdownOpen = signal(false);
   stopNote = '';
 
   private isResizing = false;
@@ -192,12 +267,13 @@ export class NotchTimerComponent {
   private startWidth = 0;
   private resizeSide: 'left' | 'right' = 'right';
 
-  // Tracks the pending shrink-timeout fired from onDropdownVisible(false).
-  // Cleared on re-entry so a fast open→close→open doesn't leave a stale
-  // pin-release running ~300ms after the user re-opens the dropdown.
-  private dropdownShrinkTimeout: ReturnType<typeof setTimeout> | null = null;
-
   onMouseEnter() {
+    // The main window may have changed settings (e.g. a droplet toggle) since
+    // this window loaded; refresh cheaply, at most every 5s.
+    if (Date.now() - this.lastSettingsSync > 5000) {
+      this.lastSettingsSync = Date.now();
+      void this.settings.load();
+    }
     this.ipc.setIgnoreMouse(false);
   }
 
@@ -251,47 +327,78 @@ export class NotchTimerComponent {
     this.ipc.setIgnoreMouse(true);
   };
 
-  onDropdownVisible(visible: boolean) {
-    const targetHeight = visible ? 350 : 38;
-    this.height.set(targetHeight);
+  private static readonly BASE_HEIGHT = 38;
+  private static readonly PANEL_HEIGHT = 150;
+  private static readonly DROPDOWN_HEIGHT = 350;
+  private static readonly STOP_HEIGHT = 200;
 
-    // Cancel any pending shrink-and-unpin from a previous dropdown close,
-    // otherwise a stale timeout fires ~300ms later and un-pins the window
-    // even though the user re-opened the dropdown.
-    if (this.dropdownShrinkTimeout !== null) {
-      clearTimeout(this.dropdownShrinkTimeout);
-      this.dropdownShrinkTimeout = null;
+  // Last height requested from the main process. Growing happens immediately;
+  // shrinking waits for the CSS transition so the window doesn't clip it.
+  private windowHeight = NotchTimerComponent.BASE_HEIGHT;
+
+  private targetHeight(): number {
+    if (this.isStopping()) return NotchTimerComponent.STOP_HEIGHT;
+    if (this.dropdownOpen()) return NotchTimerComponent.DROPDOWN_HEIGHT;
+    if (this.panel() === 'agents') {
+      // top row + limit cards (~80) + one row per live session (~34) + bottom breathing room
+      const rows = this.agents.sessions().length;
+      return 176 + (rows ? rows * 34 : 14);
+    }
+    if (this.panel()) return NotchTimerComponent.PANEL_HEIGHT;
+    return NotchTimerComponent.BASE_HEIGHT;
+  }
+
+  /**
+   * Single place that reconciles the visible state (search dropdown, stop note,
+   * droplet panel) with the notch height and the auto-hide pin.
+   */
+  private syncWindow(): void {
+    const target = this.targetHeight();
+    this.height.set(target);
+
+    // Cancel any pending shrink from a previous state change, otherwise a
+    // stale timeout could resize the window after the user re-opened something.
+    if (this.shrinkTimeout !== null) {
+      clearTimeout(this.shrinkTimeout);
+      this.shrinkTimeout = null;
     }
 
-    // Pin the notch window open while the dropdown is visible so auto-hide
-    // never tucks it away mid-search. Released when the dropdown closes.
-    this.ipc.setTimerWindowPinned(visible);
+    // Pin open while anything interactive is showing so auto-hide never tucks
+    // the notch away mid-interaction. Released immediately when all closed so
+    // the parent's stop/hide handlers see the final pin state.
+    this.ipc.setTimerWindowPinned(this.isStopping() || this.dropdownOpen() || this.panel() !== null);
 
-    if (visible) {
-      // Expand immediately so animation is visible
-      this.ipc.resizeTimerWindow(this.width(), targetHeight);
+    if (target >= this.windowHeight) {
+      this.windowHeight = target;
+      this.ipc.resizeTimerWindow(this.width(), target);
     } else {
-      // Delay window shrink until CSS transition finishes
-      this.dropdownShrinkTimeout = setTimeout(() => {
-        this.dropdownShrinkTimeout = null;
-        if (!this.isStopping() && !visible) {
-          this.ipc.resizeTimerWindow(this.width(), 38);
-          this.ipc.setTimerWindowPinned(false);
-        }
+      this.shrinkTimeout = setTimeout(() => {
+        this.shrinkTimeout = null;
+        const latest = this.targetHeight();
+        this.windowHeight = latest;
+        this.ipc.resizeTimerWindow(this.width(), latest);
       }, 300);
     }
+  }
+
+  private shrinkTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  togglePanel(which: 'media' | 'agents') {
+    this.panel.update((cur) => (cur === which ? null : which));
+    this.syncWindow();
+  }
+
+  onDropdownVisible(visible: boolean) {
+    this.dropdownOpen.set(visible);
+    // The search dropdown and the droplet panel share the space under the row.
+    if (visible) this.panel.set(null);
+    this.syncWindow();
   }
 
   handleStop() {
     this.stopNote = '';
     this.isStopping.set(true);
-    // Pin during stop-note entry so auto-hide doesn't collapse mid-typing.
-    this.ipc.setTimerWindowPinned(true);
-
-    // Total height for timer row (38) + spacing (4) + note section (~150)
-    const expandedHeight = 200;
-    this.height.set(expandedHeight);
-    this.ipc.resizeTimerWindow(this.width(), expandedHeight);
+    this.syncWindow();
 
     // Use timeout to allow angular to render the textarea before focusing
     setTimeout(() => {
@@ -301,29 +408,15 @@ export class NotchTimerComponent {
 
   cancelStop() {
     this.isStopping.set(false);
-    this.height.set(38);
-    this.ipc.setTimerWindowPinned(false);
-    // Delay window shrink
-    setTimeout(() => {
-      if (!this.isStopping()) {
-        this.ipc.resizeTimerWindow(this.width(), 38);
-      }
-    }, 300);
+    this.syncWindow();
   }
 
   async confirmStop() {
-    // Unpin BEFORE emitting the parent stop, so by the time the parent's
-    // handler runs (which may call `hideTimerWindow`), the main process
-    // already sees the pin released.
+    // Release the pin BEFORE emitting the parent stop, so by the time the
+    // parent's handler runs (which may call `hideTimerWindow`), the main
+    // process already sees the pin released.
     this.isStopping.set(false);
-    this.height.set(38);
-    this.ipc.setTimerWindowPinned(false);
+    this.syncWindow();
     this.stop.emit(this.stopNote); // Pass the stop note to parent
-    // Delay window shrink
-    setTimeout(() => {
-      if (!this.isStopping()) {
-        this.ipc.resizeTimerWindow(this.width(), 38);
-      }
-    }, 300);
   }
 }

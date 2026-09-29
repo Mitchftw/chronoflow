@@ -8,7 +8,7 @@ import type { Issue } from '../../models/issue';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SearchBarComponent],
   host: {
-    class: 'rounded-2xl border border-border/40 bg-card/65 p-6 md:p-8 min-h-[140px] flex flex-col justify-center backdrop-blur-md shadow-sm relative z-10 select-none',
+    class: 'rounded-2xl border border-border/40 bg-card/65 p-6 md:p-8 min-h-[140px] flex flex-col justify-center shadow-sm relative z-10 select-none',
   },
   template: `
     @if (isRunning()) {
@@ -18,7 +18,7 @@ import type { Issue } from '../../models/issue';
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
             <span class="size-2 rounded-full bg-green-500 animate-pulse"></span>
-            <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
+            <p class="text-[10px] font-bold text-muted-foreground">
               Currently Tracking
             </p>
           </div>
@@ -32,7 +32,7 @@ import type { Issue } from '../../models/issue';
             </p>
           }
 
-          <p class="mt-3.5 font-mono text-4xl font-extrabold tracking-tight text-primary drop-shadow-[0_0_12px_rgba(59,130,246,0.35)] transition-all duration-300">
+          <p class="mt-3.5 font-mono text-4xl font-bold tracking-tight tabular-nums text-primary transition-all duration-300">
             {{ formattedTime() }}
           </p>
         </div>
@@ -54,11 +54,11 @@ import type { Issue } from '../../models/issue';
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span class="size-2 rounded-full bg-muted-foreground/40"></span>
-            <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
+            <p class="text-[10px] font-bold text-muted-foreground">
               Timer Inactive
             </p>
           </div>
-          <p class="font-mono text-2xl font-extrabold tracking-tight text-muted-foreground/60">
+          <p class="font-mono text-2xl font-bold tracking-tight text-muted-foreground">
             00:00:00
           </p>
         </div>

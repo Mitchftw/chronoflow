@@ -33,13 +33,13 @@ import type { Project } from '../../models/project';
         </div>
       </div>
     } @else if (db.projects().length === 0) {
-      <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/45 py-16 text-center bg-card/25 backdrop-blur-sm select-none">
-        <svg class="mb-4 size-12 text-muted-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+ <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/45 py-16 text-center bg-card/25 select-none">
+        <svg class="mb-4 size-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
         </svg>
         <p class="text-sm font-bold text-foreground/90">No projects yet</p>
         <button
-          class="mt-3 text-xs font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors cursor-pointer"
+          class="mt-3 text-xs font-bold text-primary hover:text-primary/80 transition-colors cursor-pointer"
           (click)="openCreateDialog()"
         >
           Create your first project
@@ -74,23 +74,23 @@ import type { Project } from '../../models/project';
         (click)="showDeleteConfirm.set(false)"
       >
         <div
-          class="w-full max-w-sm rounded-2xl border border-border/45 bg-card/95 backdrop-blur-xl p-6 shadow-2xl transition-all duration-300 relative"
+          class="w-full max-w-sm rounded-2xl border border-border/45 bg-card/95 p-6 shadow-2xl transition-all duration-300 relative"
           role="alertdialog"
           (click)="$event.stopPropagation()"
         >
-          <h3 class="text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20">Delete Project?</h3>
-          <p class="mt-3 text-xs text-muted-foreground/60 leading-relaxed">
+          <h3 class="text-sm font-bold text-muted-foreground pb-2 border-b border-border/20">Delete Project?</h3>
+          <p class="mt-3 text-xs text-muted-foreground leading-relaxed">
             This action cannot be undone. All associated issues will remain but become unlinked.
           </p>
           <div class="mt-6 flex justify-end gap-2.5 select-none">
             <button
-              class="rounded-xl border border-border/50 bg-secondary/35 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-foreground/90 transition-all duration-200 hover:bg-secondary/75 cursor-pointer"
+              class="rounded-xl border border-border/50 bg-secondary/35 px-5 py-2.5 text-xs font-bold text-foreground/90 transition-all duration-200 hover:bg-secondary/75 cursor-pointer"
               (click)="showDeleteConfirm.set(false)"
             >
               Cancel
             </button>
             <button
-              class="rounded-xl bg-red-500 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-300 hover:bg-red-600 shadow-md shadow-red-500/20 active:scale-[0.98] cursor-pointer"
+              class="rounded-xl bg-red-500 px-5 py-2.5 text-xs font-bold text-white transition-all duration-300 hover:bg-red-600 shadow-md shadow-red-500/20 active:scale-[0.98] cursor-pointer"
               (click)="executeDelete()"
             >
               Delete

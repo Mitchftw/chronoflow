@@ -37,7 +37,7 @@ interface GroupedEntry {
           type="date"
           [value]="selectedDate()"
           (change)="selectedDate.set($any($event.target).value); loadData()"
-          class="rounded-xl border border-border/40 bg-card/65 backdrop-blur-md px-4 py-2 text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm cursor-pointer"
+          class="rounded-xl border border-border/40 bg-card/65 px-4 py-2 text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm cursor-pointer"
         />
       </div>
 
@@ -48,7 +48,7 @@ interface GroupedEntry {
       <div class="ml-auto flex items-center gap-2">
         @if (jiraService.isConnected()) {
           <button
-            class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-all duration-300 hover:bg-primary/95 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+            class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground transition-all duration-300 hover:bg-primary/95 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
             [disabled]="syncingAll()"
             (click)="syncAllToJira()"
           >
@@ -76,12 +76,12 @@ interface GroupedEntry {
 
     <!-- Empty state -->
     @if (!loading() && groupedEntries().length === 0) {
-      <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/45 py-16 text-center bg-card/25 backdrop-blur-sm select-none">
-        <svg class="mb-4 size-12 text-muted-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+ <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/45 py-16 text-center bg-card/25 select-none">
+        <svg class="mb-4 size-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <p class="text-sm font-bold text-foreground/90">No time entries for this date</p>
-        <p class="mt-1 text-xs text-muted-foreground/60">
+        <p class="mt-1 text-xs text-muted-foreground">
           Start tracking time from the Issues page
         </p>
       </div>
@@ -92,7 +92,7 @@ interface GroupedEntry {
       <div class="space-y-4">
         @for (group of groupedEntries(); track group.issueId) {
           <div
-            class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md overflow-hidden shadow-sm transition-all duration-300"
+            class="rounded-2xl border border-border/40 bg-card/65 overflow-hidden shadow-sm transition-all duration-300"
             [style.border-left]="'3px solid ' + getIssueColor(group.issueId)"
           >
             <!-- Group header -->
@@ -101,12 +101,12 @@ interface GroupedEntry {
                 <span class="size-2.5 rounded-full shrink-0" [style.background-color]="getIssueColor(group.issueId)" aria-hidden="true"></span>
                 <span class="text-sm font-bold text-foreground/95 tracking-tight">{{ group.issueTitle }}</span>
                 @if (group.issueKey) {
-                  <span class="rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary border border-primary/20">
+                  <span class="rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary border border-primary/20">
                     {{ group.issueKey }}
                   </span>
                 }
                 @if (group.projectName) {
-                  <span class="rounded-md bg-secondary/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-foreground/80 border border-border/25">{{ group.projectName }}</span>
+                  <span class="rounded-md bg-secondary/70 px-2 py-0.5 text-[9px] font-bold text-foreground/80 border border-border/25">{{ group.projectName }}</span>
                 }
               </div>
               <div class="flex items-center gap-4">
@@ -115,8 +115,8 @@ interface GroupedEntry {
                   <button
                     class="transition-all duration-200 cursor-pointer"
                     [class]="allSynced(group) 
-                      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-green-500/25 bg-green-500/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-green-600 select-none' 
-                      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/45 bg-primary/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary hover:text-primary-foreground'"
+                      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-green-500/25 bg-green-500/10 px-3 py-1.5 text-xs font-bold text-green-600 select-none' 
+                      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/45 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-primary-foreground'"
                     [disabled]="allSynced(group)"
                     (click)="syncGroupToJira(group)"
                   >
@@ -141,22 +141,22 @@ interface GroupedEntry {
                     <!-- Time range -->
                     <div class="flex items-center gap-1.5 font-mono text-xs text-foreground/90 min-w-[125px] select-none">
                       <span>{{ formatTime(entry.startTime) }}</span>
-                      <span class="text-muted-foreground/55">—</span>
+                      <span class="text-muted-foreground">-</span>
                       <span>{{ entry.endTime ? formatTime(entry.endTime) : 'now' }}</span>
                     </div>
 
                     <!-- Duration -->
-                    <span class="font-mono text-xs text-muted-foreground/75 min-w-[65px] select-none">
+                    <span class="font-mono text-xs text-muted-foreground min-w-[65px] select-none">
                       {{ calcDuration(entry) }}
                     </span>
 
                     <!-- Note -->
                     @if (entry.note) {
-                      <span class="flex-1 truncate text-xs text-muted-foreground/85">
+                      <span class="flex-1 truncate text-xs text-muted-foreground">
                         {{ entry.note }}
                       </span>
                     } @else {
-                      <span class="flex-1 text-xs text-muted-foreground/45 italic select-none">No note</span>
+                      <span class="flex-1 text-xs text-muted-foreground italic select-none">No note</span>
                     }
                   </div>
 
@@ -173,7 +173,7 @@ interface GroupedEntry {
                         </span>
                       } @else if (jiraService.isConnected() && group.issueKey) {
                         <button
-                          class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-primary transition-colors hover:text-primary/80 cursor-pointer"
+                          class="inline-flex items-center gap-1 text-[11px] font-bold text-primary transition-colors hover:text-primary/80 cursor-pointer"
                           (click)="syncEntry(entry, group.issueKey)"
                           [disabled]="syncingEntryId() === entry.id"
                         >
@@ -191,7 +191,7 @@ interface GroupedEntry {
 
                     <!-- Delete -->
                     <button
-                      class="flex size-7.5 items-center justify-center rounded-xl text-muted-foreground/60 transition-all duration-200 hover:bg-red-500/20 hover:text-red-500 active:scale-90 cursor-pointer"
+                      class="flex size-7.5 items-center justify-center rounded-xl text-muted-foreground transition-all duration-200 hover:bg-red-500/20 hover:text-red-500 active:scale-90 cursor-pointer"
                       title="Delete entry"
                       (click)="deleteEntry(entry.id)"
                     >

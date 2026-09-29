@@ -1,4 +1,6 @@
 import { app, BrowserWindow, shell, ipcMain, screen } from "electron";
+import { registerMediaHandlers, stopMediaService } from "./services/media-service";
+import { registerAgentsHandlers, stopAgentsService } from "./services/agents-service";
 import * as dotenv from "dotenv";
 import * as path from "path";
 import * as fs from "fs";
@@ -894,6 +896,8 @@ app.whenReady().then(async () => {
   registerJiraHandlers();
   registerTimerHandlers(() => timerWindow, () => mainWindow);
   registerTimerWindowHandlers();
+  registerMediaHandlers(() => [timerWindow, mainWindow]);
+  registerAgentsHandlers(() => [timerWindow]);
   registerIdleHandlers(() => mainWindow, () => timerWindow);
   registerUpdaterHandlers();
 
@@ -915,6 +919,8 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  stopMediaService();
+  stopAgentsService();
   closeDatabase();
   stopHeartbeat();
   // Clean up timer window

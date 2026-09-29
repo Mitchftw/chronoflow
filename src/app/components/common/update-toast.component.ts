@@ -15,7 +15,7 @@ interface ToastInfo {
     @if (showToast(); as toast) {
       <div class="fixed bottom-5 right-5 z-50 w-[min(24rem,calc(100vw-2.5rem))]">
         <div
-          class="relative overflow-hidden rounded-xl border border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+          class="relative overflow-hidden rounded-xl border border-border/40 bg-card/95 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
           role="status"
         >
           <!-- Accent bar -->
@@ -55,13 +55,13 @@ interface ToastInfo {
                 }
               </p>
               @if (toast.releaseNotes) {
-                <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground/70">
+                <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                   {{ toast.releaseNotes }}
                 </p>
               }
               @if (toast.downloaded) {
                 <button
-                  class="mt-2.5 inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary/90"
+                  class="mt-2.5 inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90"
                   (click)="updateService.quitAndInstall()"
                 >
                   Restart &amp; Install
@@ -71,7 +71,7 @@ interface ToastInfo {
 
             <!-- Dismiss -->
             <button
-              class="shrink-0 cursor-pointer rounded-md p-1 text-muted-foreground/60 transition-colors hover:bg-secondary/60 hover:text-foreground"
+              class="shrink-0 cursor-pointer rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
               (click)="dismiss()"
               [attr.aria-label]="'Dismiss update notification'"
             >

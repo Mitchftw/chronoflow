@@ -46,18 +46,18 @@ function fmtTime(minutes: number): string {
         <div class="rounded-xl border border-border/20 bg-muted/10 px-4 py-3">
           <div class="text-sm font-semibold text-foreground/90">{{ issueName() }}</div>
           <div class="mt-0.5 text-xs font-mono text-muted-foreground">
-            {{ entry()?.startTime }} – {{ entry()?.endTime ?? 'now' }} · {{ durationLabel() }}
+            {{ entry()?.startTime }} - {{ entry()?.endTime ?? 'now' }} · {{ durationLabel() }}
           </div>
         </div>
 
         <!-- Mode toggle -->
         <div>
-          <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+          <label class="mb-2 block text-xs font-bold text-muted-foreground">
             What do you want to do?
           </label>
           <div class="flex gap-1 rounded-xl border border-border/40 bg-muted/20 p-1">
             <button
-              class="flex-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer"
+              class="flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-200 cursor-pointer"
               [class]="mode() === 'range'
                 ? 'bg-primary/15 text-primary'
                 : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'"
@@ -66,7 +66,7 @@ function fmtTime(minutes: number): string {
               Remove / move a block
             </button>
             <button
-              class="flex-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer"
+              class="flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-200 cursor-pointer"
               [class]="mode() === 'cut'
                 ? 'bg-primary/15 text-primary'
                 : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'"
@@ -80,7 +80,7 @@ function fmtTime(minutes: number): string {
         @if (mode() === 'range') {
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label for="split-from" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+              <label for="split-from" class="mb-2 block text-xs font-bold text-muted-foreground">
                 From <span class="text-primary">*</span>
               </label>
               <input
@@ -93,7 +93,7 @@ function fmtTime(minutes: number): string {
               />
             </div>
             <div>
-              <label for="split-to" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+              <label for="split-to" class="mb-2 block text-xs font-bold text-muted-foreground">
                 To <span class="text-primary">*</span>
               </label>
               <input
@@ -106,12 +106,12 @@ function fmtTime(minutes: number): string {
               />
             </div>
           </div>
-          <p class="text-xs text-muted-foreground/60">
-            The time between these moments is cut out of the entry — handy for lunch breaks or other pauses.
+          <p class="text-xs text-muted-foreground">
+            The time between these moments is cut out of the entry, handy for lunch breaks or other pauses.
           </p>
         } @else {
           <div>
-            <label for="split-at" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            <label for="split-at" class="mb-2 block text-xs font-bold text-muted-foreground">
               Split at <span class="text-primary">*</span>
             </label>
             <input
@@ -123,14 +123,14 @@ function fmtTime(minutes: number): string {
               class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
             />
           </div>
-          <p class="text-xs text-muted-foreground/60">
+          <p class="text-xs text-muted-foreground">
             The entry is cut at this moment into two separate entries.
           </p>
         }
 
         <!-- Target issue (optional) -->
         <div>
-          <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+          <label class="mb-2 block text-xs font-bold text-muted-foreground">
             {{ targetLabel() }}
           </label>
           <div class="relative z-30">
@@ -138,7 +138,7 @@ function fmtTime(minutes: number): string {
               <div class="flex items-center justify-between gap-2 rounded-xl border border-border/20 bg-muted/10 px-4 py-2.5">
                 <span class="text-sm font-semibold text-foreground/85">{{ selectedIssueLabel() }}</span>
                 <button
-                  class="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-secondary/70 hover:text-foreground transition-all cursor-pointer"
+                  class="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary/70 hover:text-foreground transition-all cursor-pointer"
                   (click)="clearTarget()"
                   title="Clear target issue"
                   aria-label="Clear target issue"
@@ -157,12 +157,12 @@ function fmtTime(minutes: number): string {
               />
             }
           </div>
-          <p class="mt-1.5 text-xs text-muted-foreground/60">{{ targetHint() }}</p>
+          <p class="mt-1.5 text-xs text-muted-foreground">{{ targetHint() }}</p>
         </div>
 
         @if (selectedIssueId()) {
           <div>
-            <label for="split-note" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            <label for="split-note" class="mb-2 block text-xs font-bold text-muted-foreground">
               Comment for the {{ mode() === 'range' ? 'moved block' : 'moved part' }}
             </label>
             <textarea
@@ -171,9 +171,9 @@ function fmtTime(minutes: number): string {
               (input)="note.set($any($event.target).value)"
               placeholder="Add description..."
               rows="3"
-              class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner resize-none"
+              class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner resize-none"
             ></textarea>
-            <p class="mt-1 text-xs text-muted-foreground/60">
+            <p class="mt-1 text-xs text-muted-foreground">
               Defaults to the original entry's comment; adjust it for the other issue.
             </p>
           </div>

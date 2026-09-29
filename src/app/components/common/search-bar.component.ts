@@ -54,7 +54,7 @@ export type SearchResult =
       <!-- Search icon -->
       <div 
         class="pointer-events-none absolute inset-y-0 left-0 flex items-center"
-        [class]="variant() === 'default' ? 'pl-3.5 text-muted-foreground/60' : 'pl-2.5 text-zinc-100/80'"
+        [class]="variant() === 'default' ? 'pl-3.5 text-muted-foreground' : 'pl-2.5 text-zinc-100/80'"
       >
         <svg 
           [class]="variant() === 'default' ? 'size-4.5' : 'size-3.5'" 
@@ -88,7 +88,7 @@ export type SearchResult =
           (blur)="onBlur()"
           (keydown.escape)="focused.set(false)"
           [placeholder]="placeholder()"
-          class="w-full rounded-xl border border-border/40 bg-zinc-900/60 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-1.5 focus:ring-primary/40 focus:border-transparent transition-all duration-300"
+          class="w-full rounded-xl border border-border/40 bg-zinc-900/60 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1.5 focus:ring-primary/40 focus:border-transparent transition-all duration-300"
         />
       } @else {
         <input
@@ -99,14 +99,14 @@ export type SearchResult =
           (blur)="onBlur()"
           (keydown.escape)="focused.set(false)"
           [placeholder]="placeholder()"
-          class="w-full rounded-xl border border-border/40 bg-card/65 backdrop-blur-md py-3 pl-11 pr-11 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm"
+          class="w-full rounded-xl border border-border/40 bg-card/65 py-3 pl-11 pr-11 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm"
         />
       }
 
       <!-- Clear button -->
       @if (query()) {
         <button
-          class="absolute inset-y-0 right-0 flex items-center text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer"
+          class="absolute inset-y-0 right-0 flex items-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           [class]="variant() === 'default' ? 'pr-3.5' : 'pr-2.5'"
           (click)="clear()"
           aria-label="Clear search"
@@ -146,12 +146,12 @@ export type SearchResult =
       >
         @if (results().length === 0 && !searchingJira()) {
           @if (query().length >= 2 && jiraService.connections().length === 0) {
-            <div class="px-4 py-6 text-center text-xs font-semibold text-muted-foreground/70 space-y-1">
+            <div class="px-4 py-6 text-center text-xs font-semibold text-muted-foreground space-y-1">
               <p class="italic">No Jira connection configured.</p>
               <p>Add one in <span class="text-primary">Settings → Jira Integration</span> to search remote issues.</p>
             </div>
           } @else {
-            <div class="px-4 py-8 text-center text-xs font-semibold text-muted-foreground/60 italic">
+            <div class="px-4 py-8 text-center text-xs font-semibold text-muted-foreground italic">
               @if (query().length >= 2) {
                 No results found for "{{ query() }}"
               } @else {
@@ -163,12 +163,12 @@ export type SearchResult =
           @for (group of groupedResults(); track group.label) {
             <!-- Section header -->
             <div 
-              class="flex items-center gap-2 font-bold uppercase tracking-widest mt-2 first:mt-0 mb-1 select-none"
-              [class]="variant() === 'default' ? 'px-3 py-2 text-[10px] text-muted-foreground/60' : 'px-2 py-1.5 text-[9px] text-zinc-400'"
+              class="flex items-center gap-2 font-bold mt-2 first:mt-0 mb-1 select-none"
+              [class]="variant() === 'default' ? 'px-3 py-2 text-[10px] text-muted-foreground' : 'px-2 py-1.5 text-[9px] text-zinc-400'"
             >
               <div class="h-px flex-1 bg-white/5"></div>
               {{ group.label }}
-              <span class="text-[9px]" [class]="variant() === 'default' ? 'text-muted-foreground/45' : 'text-zinc-500'">({{ group.items.length }})</span>
+              <span class="text-[9px]" [class]="variant() === 'default' ? 'text-muted-foreground' : 'text-zinc-500'">({{ group.items.length }})</span>
               <div class="h-px flex-1 bg-white/5"></div>
             </div>
 
@@ -194,7 +194,7 @@ export type SearchResult =
                     </svg>
                   } @else {
                     <svg 
-                      [class]="(variant() === 'default' ? 'size-4.5 ' : 'size-3.5 ') + (variant() === 'default' ? 'text-muted-foreground/60' : 'text-zinc-100/70')"
+                      [class]="(variant() === 'default' ? 'size-4.5 ' : 'size-3.5 ') + (variant() === 'default' ? 'text-muted-foreground' : 'text-zinc-100/70')"
                       class="shrink-0" 
                       fill="none" 
                       viewBox="0 0 24 24" 
@@ -213,12 +213,12 @@ export type SearchResult =
                         [class]="variant() === 'default' ? 'text-xs text-foreground/95' : 'text-[11px] text-white'"
                       >{{ result.key }}</span>
                       @if (result.type === 'jira') {
-                        <span class="rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">Jira</span>
+                        <span class="rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">Jira</span>
                       }
                     </div>
                     <p 
                       class="truncate mt-0.5"
-                      [class]="variant() === 'default' ? 'text-xs text-muted-foreground/80' : 'text-[10px] text-zinc-300'"
+                      [class]="variant() === 'default' ? 'text-xs text-muted-foreground' : 'text-[10px] text-zinc-300'"
                     >{{ result.summary }}</p>
                   </div>
                 </button>

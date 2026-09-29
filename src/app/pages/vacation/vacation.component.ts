@@ -81,10 +81,10 @@ interface VacationDay {
     <div class="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-5">
       <!-- ═══ LEFT: Form ═══ -->
       <section
-        class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-5 shadow-md space-y-5 self-start"
+        class="rounded-2xl border border-border/40 bg-card/65 p-5 shadow-md space-y-5 self-start"
       >
         <h2
-          class="text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20"
+          class="text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
         >
           Range
         </h2>
@@ -93,7 +93,7 @@ interface VacationDay {
         <div class="grid grid-cols-2 gap-3">
           <label class="block">
             <span
-              class="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-1.5"
+              class="block text-[10px] font-bold text-muted-foreground mb-1.5"
               >Start</span
             >
             <input
@@ -106,7 +106,7 @@ interface VacationDay {
           </label>
           <label class="block">
             <span
-              class="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-1.5"
+              class="block text-[10px] font-bold text-muted-foreground mb-1.5"
               >End</span
             >
             <input
@@ -119,7 +119,7 @@ interface VacationDay {
           </label>
         </div>
 
-        <div class="flex items-center gap-2 text-xs text-muted-foreground/70">
+        <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <svg
             class="size-3.5"
             fill="none"
@@ -136,13 +136,13 @@ interface VacationDay {
           Weekends are skipped automatically.
           @if (startInPast()) {
             <span class="text-amber-600 dark:text-amber-400 font-semibold"
-              >Start is in the past — Jira may reject backdated worklogs.</span
+              >Start is in the past. Jira may reject backdated worklogs.</span
             >
           }
         </div>
 
         <h2
-          class="text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20 pt-2"
+          class="text-sm font-bold text-muted-foreground pb-2 border-b border-border/20 pt-2"
         >
           Hours &amp; comment
         </h2>
@@ -150,7 +150,7 @@ interface VacationDay {
         <div class="grid grid-cols-2 gap-3">
           <label class="block">
             <span
-              class="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-1.5"
+              class="block text-[10px] font-bold text-muted-foreground mb-1.5"
               >Hours / workday</span
             >
             <div class="flex items-center gap-2">
@@ -168,16 +168,16 @@ interface VacationDay {
                 "
                 class="w-20 rounded-xl border border-border/40 bg-background/50 px-3 py-2.5 text-sm font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner disabled:opacity-60 disabled:cursor-not-allowed"
               />
-              <span class="text-xs font-semibold text-muted-foreground/70">h</span>
+              <span class="text-xs font-semibold text-muted-foreground">h</span>
             </div>
-            <p class="text-[10px] text-muted-foreground/55 mt-1">
+            <p class="text-[10px] text-muted-foreground mt-1">
               Override per row in the preview
             </p>
           </label>
 
           <label class="block">
             <span
-              class="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-1.5"
+              class="block text-[10px] font-bold text-muted-foreground mb-1.5"
               >Comment</span
             >
             <input
@@ -186,13 +186,13 @@ interface VacationDay {
               [disabled]="pushing()"
               (input)="comment.set($any($event.target).value)"
               placeholder="Vakantie"
-              class="w-full rounded-xl border border-border/40 bg-background/50 px-3 py-2.5 text-sm font-semibold text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner disabled:opacity-60 disabled:cursor-not-allowed"
+              class="w-full rounded-xl border border-border/40 bg-background/50 px-3 py-2.5 text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </label>
         </div>
 
         <h2
-          class="text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20 pt-2"
+          class="text-sm font-bold text-muted-foreground pb-2 border-b border-border/20 pt-2"
         >
           Verlof ticket
         </h2>
@@ -235,18 +235,18 @@ interface VacationDay {
                   >
                   @if (usingSavedDefault()) {
                     <span
-                      class="rounded-md bg-primary/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary"
+                      class="rounded-md bg-primary/20 px-1.5 py-0.5 text-[9px] font-bold text-primary"
                       >Saved default</span
                     >
                   }
                 </div>
-                <p class="text-xs text-muted-foreground/70 truncate">
+                <p class="text-xs text-muted-foreground truncate">
                   {{ issue.summary }}
                 </p>
               </div>
             </div>
             <button
-              class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer"
+              class="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               (click)="clearIssue()"
               aria-label="Clear selected ticket"
               title="Clear"
@@ -258,7 +258,7 @@ interface VacationDay {
           <p class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">
             Default key
             <span class="font-mono">{{ settings().defaultVacationIssueKey }}</span>
-            was not found — please pick another.
+            was not found. Please pick another.
           </p>
         }
 
@@ -267,7 +267,7 @@ interface VacationDay {
           <button
             (click)="pushAll()"
             [disabled]="!canPush()"
-            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold uppercase tracking-wider text-primary-foreground shadow-md shadow-primary/20 transition-all duration-300 hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-md shadow-primary/20 transition-all duration-300 hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             @if (pushing()) {
               <div
@@ -296,7 +296,7 @@ interface VacationDay {
           @if (failedCount() > 0 && !pushing()) {
             <button
               (click)="retryFailed()"
-              class="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 transition-all duration-300 hover:bg-amber-500/20 cursor-pointer"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs font-bold text-amber-700 dark:text-amber-300 transition-all duration-300 hover:bg-amber-500/20 cursor-pointer"
             >
               <svg
                 class="size-3.5"
@@ -330,7 +330,7 @@ interface VacationDay {
               to {{ selectedIssue()?.key }}.
             } @else {
               {{ result.success }} of {{ result.success + result.failed }} pushed.
-              The {{ result.failed }} that failed stop the loop — hit Retry above once you've
+              The {{ result.failed }} that failed stop the loop. Hit Retry above once you've
               checked the failure (e.g. expired token, missing permission).
             }
           </div>
@@ -339,20 +339,20 @@ interface VacationDay {
 
       <!-- ═══ RIGHT: Preview + summary ═══ -->
       <section
-        class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-5 shadow-md space-y-4"
+        class="rounded-2xl border border-border/40 bg-card/65 p-5 shadow-md space-y-4"
       >
         <div class="flex items-center justify-between gap-3 pb-2 border-b border-border/20">
           <h2
-            class="text-sm font-bold uppercase tracking-widest text-muted-foreground/80"
+            class="text-sm font-bold text-muted-foreground"
           >
             Preview
           </h2>
-          <div class="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground/80">
+          <div class="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground">
             <span
               class="rounded-md bg-secondary/60 border border-border/30 px-2 py-0.5"
               >{{ workdayCount() }} workday{{ workdayCount() === 1 ? '' : 's' }}</span
             >
-            <span class="text-muted-foreground/40">·</span>
+            <span class="text-muted-foreground">·</span>
             <span
               class="rounded-md bg-secondary/60 border border-border/30 px-2 py-0.5"
               >≈ {{ totalHours() }}h</span
@@ -365,7 +365,7 @@ interface VacationDay {
             class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/40 py-12 text-center"
           >
             <svg
-              class="mb-3 size-10 text-muted-foreground/30"
+              class="mb-3 size-10 text-muted-foreground"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -380,7 +380,7 @@ interface VacationDay {
             <p class="text-sm font-bold text-foreground/90">
               No workdays in this range
             </p>
-            <p class="text-xs text-muted-foreground/60 mt-1 max-w-xs">
+            <p class="text-xs text-muted-foreground mt-1 max-w-xs">
               Adjust the dates above so at least one weekday falls inside the
               range.
             </p>
@@ -432,7 +432,7 @@ interface VacationDay {
                     }
                     @default {
                       <svg
-                        class="size-4 text-muted-foreground/40"
+                        class="size-4 text-muted-foreground"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -453,7 +453,7 @@ interface VacationDay {
                   <span class="text-sm font-bold text-foreground/90"
                     >{{ row.label }}</span
                   >
-                  <span class="text-[10px] font-mono text-muted-foreground/55"
+                  <span class="text-[10px] font-mono text-muted-foreground"
                     >{{ row.dateISO }}</span
                   >
                   @if (row.errorMessage) {
@@ -478,14 +478,14 @@ interface VacationDay {
                     (input)="updateRowHours(i, $any($event.target).valueAsNumber)"
                     class="w-16 rounded-lg border border-border/40 bg-background/60 px-2 py-1 text-xs font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 shadow-inner disabled:opacity-50"
                   />
-                  <span class="text-[10px] font-semibold text-muted-foreground/60">h</span>
+                  <span class="text-[10px] font-semibold text-muted-foreground">h</span>
                 </div>
 
                 <!-- Skip toggle -->
                 <button
                   (click)="toggleSkipDay(i)"
                   [disabled]="pushing() || row.status === 'syncing' || row.status === 'success'"
-                  class="shrink-0 rounded-lg p-1.5 text-muted-foreground/60 hover:text-foreground hover:bg-secondary/60 transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  class="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   [title]="row.skipped ? 'Include this day' : 'Skip this day (public holiday etc.)'"
                   [attr.aria-label]="row.skipped ? 'Include this day' : 'Skip this day'"
                 >

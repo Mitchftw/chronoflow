@@ -22,7 +22,7 @@ import type { Issue } from '../../models/issue';
       <div class="space-y-4">
         <!-- Issue Selection / Display -->
         <div>
-          <label for="entry-issue" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+          <label for="entry-issue" class="mb-2 block text-xs font-bold text-muted-foreground">
             Issue <span class="text-primary">*</span>
           </label>
           @if (entry()) {
@@ -44,7 +44,7 @@ import type { Issue } from '../../models/issue';
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <!-- Date -->
           <div>
-            <label for="edit-entry-date" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            <label for="edit-entry-date" class="mb-2 block text-xs font-bold text-muted-foreground">
               Date <span class="text-primary">*</span>
             </label>
             <input
@@ -58,7 +58,7 @@ import type { Issue } from '../../models/issue';
 
           <!-- Start Time -->
           <div>
-            <label for="edit-start-time" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            <label for="edit-start-time" class="mb-2 block text-xs font-bold text-muted-foreground">
               Start Time <span class="text-primary">*</span>
             </label>
             <input
@@ -73,7 +73,7 @@ import type { Issue } from '../../models/issue';
 
           <!-- End Time -->
           <div>
-            <label for="edit-end-time" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            <label for="edit-end-time" class="mb-2 block text-xs font-bold text-muted-foreground">
               End Time
             </label>
             <input
@@ -89,7 +89,7 @@ import type { Issue } from '../../models/issue';
 
         <!-- Description / Note -->
         <div>
-          <label for="edit-entry-note" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+          <label for="edit-entry-note" class="mb-2 block text-xs font-bold text-muted-foreground">
             Description
           </label>
           <textarea
@@ -98,7 +98,7 @@ import type { Issue } from '../../models/issue';
             (input)="note.set($any($event.target).value)"
             placeholder="Add description..."
             rows="3"
-            class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner resize-none"
+            class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner resize-none"
           ></textarea>
         </div>
       </div>

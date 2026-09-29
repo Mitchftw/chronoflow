@@ -14,24 +14,34 @@ import { JiraService } from "../../services/jira.service";
 import { UpdateService } from "../../services/update.service";
 import { IdleDetectionService } from "../../services/idle-detection.service";
 import { IpcService } from "../../services/ipc.service";
+import { DropletStoreComponent } from "../../droplets/droplet-store.component";
 import { PageHeaderComponent } from "../../components/common/page-header.component";
 import type { JiraConnection, DisplayInfo } from "../../../types";
 
 @Component({
   selector: "app-settings",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent],
+  imports: [PageHeaderComponent, DropletStoreComponent],
   host: { class: "block max-w-3xl" },
   template: `
     <app-page-header title="Settings" subtitle="Configure your application preferences" />
 
     <div class="space-y-6">
+      <!-- ═══ Droplet Store ═══ -->
+      <section class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300">
+        <h2 class="mb-1 text-sm font-bold text-muted-foreground">Droplet Store</h2>
+        <p class="mb-5 pb-2 border-b border-border/20 text-xs text-muted-foreground">
+          Add-ons for the notch. Install what you want, remove the rest.
+        </p>
+        <app-droplet-store />
+      </section>
+
       <!-- ═══ Appearance ═══ -->
       <section
-        class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-6 shadow-md transition-all duration-300"
+        class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
         <h2
-          class="mb-5 text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20"
+          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
         >
           Appearance
         </h2>
@@ -43,7 +53,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
           >
             <div>
               <p class="text-sm font-semibold text-foreground/95">Theme</p>
-              <p class="text-xs text-muted-foreground/60 mt-0.5">
+              <p class="text-xs text-muted-foreground mt-0.5">
                 Current selection: {{ settings().themePreference }}
               </p>
             </div>
@@ -52,11 +62,11 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             >
               @for (opt of themeOptions; track opt.value) {
                 <button
-                  class="rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer"
+                  class="rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-300 cursor-pointer"
                   [class]="
                     settings().themePreference === opt.value
                       ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25'
-                      : 'text-muted-foreground/80 hover:text-foreground hover:bg-secondary/40'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/40'
                   "
                   (click)="setTheme(opt.value)"
                 >
@@ -70,7 +80,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
           >
             <div>
               <p class="text-sm font-semibold text-foreground/95">Timer Mode</p>
-              <p class="text-xs text-muted-foreground/60 mt-0.5">
+              <p class="text-xs text-muted-foreground mt-0.5">
                 Choose the display style of the active timer
               </p>
             </div>
@@ -79,10 +89,10 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             >
               @for (mode of timerModeOptions; track mode.value) {
                 <button
-                  class="rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer"
+                  class="rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-300 cursor-pointer"
                   [class]="settings().timerMode === mode.value
                     ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25'
-                    : 'text-muted-foreground/80 hover:text-foreground hover:bg-secondary/40'"
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/40'"
                   (click)="setTimerMode(mode.value)"
                 >
                   {{ mode.label }}
@@ -98,9 +108,9 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             <div>
               <p class="text-sm font-semibold text-foreground/95">
                 Auto-hide Notch
-                <span class="ml-2 inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary border border-primary/20">Notch only</span>
+                <span class="ml-2 inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary border border-primary/20">Notch only</span>
               </p>
-              <p class="text-xs text-muted-foreground/60 mt-0.5">
+              <p class="text-xs text-muted-foreground mt-0.5">
                 Tuck the notch out of the way; it slides down when your mouse approaches the top of the screen.
               </p>
             </div>
@@ -125,9 +135,9 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             <div>
               <p class="text-sm font-semibold text-foreground/95">
                 Notch screen
-                <span class="ml-2 inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary border border-primary/20">Notch only</span>
+                <span class="ml-2 inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary border border-primary/20">Notch only</span>
               </p>
-              <p class="text-xs text-muted-foreground/60 mt-0.5">
+              <p class="text-xs text-muted-foreground mt-0.5">
                 Choose which monitor the notch appears on when using multiple screens.
               </p>
             </div>
@@ -153,7 +163,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               <p class="text-sm font-semibold text-foreground/95">
                 Round to 15 minutes
               </p>
-              <p class="text-xs text-muted-foreground/60 mt-0.5">
+              <p class="text-xs text-muted-foreground mt-0.5">
                 Round time entries up to the nearest 15-minute interval
               </p>
             </div>
@@ -177,10 +187,10 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
       <!-- ═══ Idle Detection ═══ -->
       <section
-        class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-6 shadow-md transition-all duration-300"
+        class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
         <h2
-          class="mb-5 text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20"
+          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
         >
           Idle Detection
         </h2>
@@ -210,13 +220,13 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               class="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-secondary/80 accent-primary"
             />
             <div
-              class="flex justify-between text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider"
+              class="flex justify-between text-[10px] font-bold text-muted-foreground "
             >
               <span>Off</span>
               <span>30 min</span>
             </div>
           </div>
-          <p class="text-xs text-muted-foreground/60 leading-relaxed mt-2.5">
+          <p class="text-xs text-muted-foreground leading-relaxed mt-2.5">
             After this period of inactivity, you'll be prompted to keep or
             discard the idle time.
           </p>
@@ -225,23 +235,23 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
       <!-- ═══ Jira Integration ═══ -->
       <section
-        class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-6 shadow-md transition-all duration-300"
+        class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
         <div
           class="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
         >
           <div>
             <h2
-              class="text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-1 border-b border-border/20 sm:border-none sm:pb-0"
+              class="text-sm font-bold text-muted-foreground pb-1 border-b border-border/20 sm:border-none sm:pb-0"
             >
               Jira Integration
             </h2>
-            <p class="text-xs text-muted-foreground/60 mt-0.5">
+            <p class="text-xs text-muted-foreground mt-0.5">
               Manage connections to Atlassian Jira Cloud
             </p>
           </div>
           <button
-            class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-all duration-300 hover:bg-primary/95 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer self-start sm:self-auto"
+            class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground transition-all duration-300 hover:bg-primary/95 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer self-start sm:self-auto"
             (click)="toggleConnectionForm()"
           >
             @if (showConnectionForm()) {
@@ -277,7 +287,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             <!-- Auth Type Select -->
             <div>
               <label
-                class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80"
+                class="mb-2 block text-xs font-bold text-muted-foreground"
                 >Authentication Method</label
               >
               <div
@@ -285,11 +295,11 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               >
                 <button
                   type="button"
-                  class="rounded-lg py-2 text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer"
+                  class="rounded-lg py-2 text-xs font-bold transition-all duration-300 cursor-pointer"
                   [class]="
                     formAuthType() === 'api-key'
                       ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground/80 hover:text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                   "
                   (click)="formAuthType.set('api-key')"
                 >
@@ -297,11 +307,11 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                 </button>
                 <button
                   type="button"
-                  class="rounded-lg py-2 text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer"
+                  class="rounded-lg py-2 text-xs font-bold transition-all duration-300 cursor-pointer"
                   [class]="
                     formAuthType() === 'oauth'
                       ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground/80 hover:text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                   "
                   (click)="formAuthType.set('oauth')"
                 >
@@ -313,7 +323,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             <!-- Common Fields -->
             <div>
               <label
-                class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80"
+                class="mb-2 block text-xs font-bold text-muted-foreground"
                 >Connection Name</label
               >
               <input
@@ -321,7 +331,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                 [value]="formName()"
                 (input)="formName.set($any($event.target).value)"
                 placeholder="My Company Jira"
-                class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+                class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
               />
             </div>
 
@@ -329,7 +339,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             @if (formAuthType() === "api-key") {
               <div>
                 <label
-                  class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80"
+                  class="mb-2 block text-xs font-bold text-muted-foreground"
                   >Domain *</label
                 >
                 <input
@@ -337,13 +347,13 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                   [value]="formDomain()"
                   (input)="formDomain.set($any($event.target).value)"
                   placeholder="your-domain.atlassian.net"
-                  class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+                  class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
                 />
               </div>
 
               <div>
                 <label
-                  class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80"
+                  class="mb-2 block text-xs font-bold text-muted-foreground"
                   >Email</label
                 >
                 <input
@@ -351,13 +361,13 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                   [value]="formEmail()"
                   (input)="formEmail.set($any($event.target).value)"
                   placeholder="you@example.com"
-                  class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+                  class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
                 />
               </div>
 
               <div>
                 <label
-                  class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80"
+                  class="mb-2 block text-xs font-bold text-muted-foreground"
                   >API Token</label
                 >
                 <input
@@ -365,10 +375,10 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                   [value]="formApiToken()"
                   (input)="formApiToken.set($any($event.target).value)"
                   placeholder="Your Jira API token"
-                  class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+                  class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
                 />
                 <p
-                  class="mt-1.5 text-[10px] font-semibold text-muted-foreground/50"
+                  class="mt-1.5 text-[10px] font-semibold text-muted-foreground"
                 >
                   Generate from
                   <a
@@ -387,7 +397,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                 <div class="flex items-center gap-3">
                   <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-all duration-300 hover:bg-primary/95 disabled:opacity-40 shadow-md shadow-primary/10 active:scale-[0.98] cursor-pointer"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground transition-all duration-300 hover:bg-primary/95 disabled:opacity-40 shadow-md shadow-primary/10 active:scale-[0.98] cursor-pointer"
                     [disabled]="testingConnection()"
                     (click)="startJiraOAuth()"
                   >
@@ -424,7 +434,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                 @if (oauthResources().length > 0) {
                   <div>
                     <label
-                      class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80"
+                      class="mb-2 block text-xs font-bold text-muted-foreground"
                       >Select Jira Site *</label
                     >
                     <select
@@ -464,7 +474,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
             <div class="flex items-center gap-2.5 pt-2">
               <button
-                class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-primary-foreground transition-all duration-300 hover:bg-primary/95 disabled:opacity-40 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground transition-all duration-300 hover:bg-primary/95 disabled:opacity-40 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
                 [disabled]="!isFormValid() || savingConnection()"
                 (click)="saveConnection()"
               >
@@ -479,7 +489,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
               @if (formAuthType() === "api-key" && formDomain().trim()) {
                 <button
-                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-border/50 bg-secondary/35 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-foreground/90 transition-all duration-200 hover:bg-secondary/75 disabled:opacity-40 cursor-pointer"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-border/50 bg-secondary/35 px-5 py-2.5 text-xs font-bold text-foreground/90 transition-all duration-200 hover:bg-secondary/75 disabled:opacity-40 cursor-pointer"
                   [disabled]="testingConnection()"
                   (click)="testConnection()"
                 >
@@ -517,7 +527,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/40 py-10 text-center select-none"
           >
             <svg
-              class="mb-3 size-10 text-muted-foreground/30"
+              class="mb-3 size-10 text-muted-foreground"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -533,7 +543,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               No Jira connections yet
             </p>
             <p
-              class="text-xs text-muted-foreground/60 mt-1 px-6 max-w-sm leading-relaxed"
+              class="text-xs text-muted-foreground mt-1 px-6 max-w-sm leading-relaxed"
             >
               Add a connection above to sync your issues and time tracking
               worklogs
@@ -553,12 +563,12 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                     >
                     @if (conn.isDefault) {
                       <span
-                        class="rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary border border-primary/20"
+                        class="rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary border border-primary/20"
                         >Default</span
                       >
                     }
                   </div>
-                  <p class="text-xs text-muted-foreground/60 truncate mt-1">
+                  <p class="text-xs text-muted-foreground truncate mt-1">
                     @if (conn.authType === "oauth") {
                       OAuth 2.0 · Site ID: {{ conn.domain }}
                     } @else {
@@ -568,7 +578,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                 </div>
                 <div class="flex items-center gap-1.5 select-none z-10">
                   <button
-                    class="flex size-8 items-center justify-center rounded-xl text-muted-foreground/70 transition-all duration-200 hover:bg-secondary hover:text-foreground active:scale-90 cursor-pointer"
+                    class="flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground active:scale-90 cursor-pointer"
                     title="Edit"
                     (click)="editConnection(conn)"
                   >
@@ -587,7 +597,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                     </svg>
                   </button>
                   <button
-                    class="flex size-8 items-center justify-center rounded-xl text-muted-foreground/70 transition-all duration-200 hover:bg-red-500/20 hover:text-red-500 active:scale-90 cursor-pointer"
+                    class="flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-all duration-200 hover:bg-red-500/20 hover:text-red-500 active:scale-90 cursor-pointer"
                     title="Delete"
                     (click)="deleteConnection(conn.id)"
                   >
@@ -614,16 +624,16 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
       <!-- ═══ Vacation Defaults ═══ -->
       <section
-        class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-6 shadow-md transition-all duration-300"
+        class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
         <h2
-          class="mb-5 text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20"
+          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
         >
           Vacation
         </h2>
 
         <div class="space-y-3.5">
-          <p class="text-xs text-muted-foreground/60 leading-relaxed">
+          <p class="text-xs text-muted-foreground leading-relaxed">
             Defaults applied when logging vacation on a Jira verlof ticket from
             <span class="text-foreground/80 font-semibold">/vacation</span>.
           </p>
@@ -634,7 +644,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               <p class="text-sm font-semibold text-foreground/95">
                 Hours per workday
               </p>
-              <p class="text-xs text-muted-foreground/60 mt-0.5">
+              <p class="text-xs text-muted-foreground mt-0.5">
                 Standard is 8h. Use 0.5 increments for part-time schedules.
               </p>
             </div>
@@ -652,7 +662,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                 "
                 class="w-20 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
               />
-              <span class="text-xs font-semibold text-muted-foreground/70">h</span>
+              <span class="text-xs font-semibold text-muted-foreground">h</span>
             </div>
           </div>
 
@@ -662,7 +672,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               <p class="text-sm font-semibold text-foreground/95">
                 Default verlof ticket
               </p>
-              <p class="text-xs text-muted-foreground/60 mt-0.5">
+              <p class="text-xs text-muted-foreground mt-0.5">
                 Jira key to pre-select on <span class="font-semibold">/vacation</span>&mdash;e.g.
                 <span class="font-mono text-primary/90">VERL-12</span>. Leave blank to pick each time.
               </p>
@@ -672,7 +682,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               [value]="settings().defaultVacationIssueKey ?? ''"
               (input)="setDefaultVacationIssueKey($any($event.target).value)"
               placeholder="e.g. VERL-12"
-              class="w-40 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-mono font-bold text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner self-start sm:self-auto"
+              class="w-40 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-mono font-bold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner self-start sm:self-auto"
             />
           </div>
         </div>
@@ -680,10 +690,10 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
       <!-- ═══ Updates ═══ -->
       <section
-        class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-6 shadow-md transition-all duration-300"
+        class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
         <h2
-          class="mb-5 text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20"
+          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
         >
           Updates
         </h2>
@@ -695,7 +705,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               <p class="text-sm font-semibold text-foreground/95">
                 Auto-check for updates
               </p>
-              <p class="text-xs text-muted-foreground/60 mt-0.5">
+              <p class="text-xs text-muted-foreground mt-0.5">
                 Automatically check for new versions on startup
               </p>
             </div>
@@ -723,7 +733,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               </p>
               @if (update.releaseNotes) {
                 <p
-                  class="mt-1 text-xs text-muted-foreground/60 leading-relaxed"
+                  class="mt-1 text-xs text-muted-foreground leading-relaxed"
                 >
                   {{ update.releaseNotes }}
                 </p>
@@ -739,7 +749,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                 Update v{{ update.version }} downloaded
               </p>
               <button
-                class="mt-2.5 text-xs font-bold uppercase tracking-wider text-primary transition-colors hover:text-primary/80 cursor-pointer"
+                class="mt-2.5 text-xs font-bold text-primary transition-colors hover:text-primary/80 cursor-pointer"
                 (click)="updateService.quitAndInstall()"
               >
                 Restart & Install
@@ -751,10 +761,10 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
       <!-- ═══ About ═══ -->
       <section
-        class="rounded-2xl border border-border/40 bg-card/65 backdrop-blur-md p-6 shadow-md transition-all duration-300"
+        class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
         <h2
-          class="mb-5 text-sm font-bold uppercase tracking-widest text-muted-foreground/80 pb-2 border-b border-border/20"
+          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
         >
           About
         </h2>
@@ -763,17 +773,17 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
           <div
             class="flex items-center justify-between border-b border-border/20 pb-2"
           >
-            <span class="text-xs font-semibold text-muted-foreground/80"
+            <span class="text-xs font-semibold text-muted-foreground"
               >Version</span
             >
             <span class="text-xs font-bold text-foreground/95">{{
-              appVersion() || "—"
+              appVersion() || "-"
             }}</span>
           </div>
           <div
             class="flex items-center justify-between border-b border-border/20 pb-2"
           >
-            <span class="text-xs font-semibold text-muted-foreground/80"
+            <span class="text-xs font-semibold text-muted-foreground"
               >Runtime</span
             >
             <span class="text-xs font-bold text-foreground/95">
@@ -782,7 +792,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
           </div>
           @if (jiraService.isConnected()) {
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-muted-foreground/80"
+              <span class="text-xs font-semibold text-muted-foreground"
                 >Jira Connections</span
               >
               <span class="text-xs font-bold text-foreground/95">{{
@@ -867,6 +877,7 @@ export class SettingsComponent {
   setTimerMode(value: TimerMode): void {
     this.settingsService.update({ timerMode: value });
   }
+
 
   toggleAutoHideNotch(): void {
     this.settingsService.update({ autoHideNotch: !this.settings().autoHideNotch });

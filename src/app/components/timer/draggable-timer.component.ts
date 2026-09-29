@@ -26,9 +26,9 @@ import type { Issue } from '../../models/issue';
         <!-- Info -->
         <div class="flex-1 min-w-0">
           @if (issueName()) {
-            <p class="truncate text-[10px] font-bold uppercase tracking-wider text-zinc-400">{{ issueName() }}</p>
+            <p class="truncate text-[10px] font-bold text-zinc-400">{{ issueName() }}</p>
           } @else {
-            <p class="truncate text-[10px] font-bold uppercase tracking-wider text-zinc-400">Tracking</p>
+            <p class="truncate text-[10px] font-bold text-zinc-400">Tracking</p>
           }
           <p class="font-mono text-lg font-black tracking-tight text-emerald-400 mt-0.5">
             {{ formattedTime() }}

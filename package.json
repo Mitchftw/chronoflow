@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.18\n\n#### Highlights\n- **Day timeline with visible gaps:** every time entry is now a coloured block on a 24h ribbon. Untracked stretches show up as hatched gaps you can hover (duration shown) and click to add an entry pre-filled with that exact time range. Overlapping entries stack in lanes and a live now-marker tracks the running timer.\n- **Colour per issue:** every issue gets its own accent colour, auto-derived from the issue id and overridable with a colour picker in the issue form. The colour is consistent across the dashboard, timeline, issue list and timesheets.\n- **Whole-app visual redesign:** refreshed colour system (light + dark), ambient background, shared card/button/input styles, consistent page headers, and a redesigned sidebar and title bar. A live timer pill is now visible on every page.\n- **Dashboard rework:** two-column workspace (timer + timeline + entries on the left, stats + week overview on the right). Stats show progress against your daily goal and the week overview makes per-day gaps readable at a glance.\n\n#### Also in this release\n- Date picker in the manual time entry dialog; the entry list title and empty state now show the selected day (e.g. Today / Yesterday).\n- Saving a time entry navigates the dashboard to that entry's date automatically.\n- Dashboard keyboard shortcuts: Left/Right change day, T = today, S = stop the running timer.\n\n#### Fixes\n- Editing a time entry's date now persists correctly.\n- Issue creation now returns the real generated id (the UI could previously hold a stale id until reload).\n- E2E tests now run against an isolated, freshly-cleared database and no longer touch the developer database."
+      "releaseNotes": "### ChronoFlow v0.1.19\n\n#### Highlights\n- **Droplet Store:** the notch add-ons are now a marketplace in Settings. Browse Timer, Media and Agents, open a card for details and features, and install or remove with one click.\n- **Agents droplet, live:** see Claude Code and Codex sessions in the notch: the current tool call, the file or command, lines added and removed, and tool-call count, plus real Claude and OpenAI logos.\n- **Usage limits:** 5-hour and weekly limits for Claude and Codex as progress bars with time to reset. Codex reads its local logs; Claude limits need a terminal Claude Code session (Pro/Max) with the statusLine hook.\n- **Media droplet:** now playing in the notch with cover art and previous/pause/next controls, driven by Windows media sessions (Spotify, browsers and more).\n\n#### Fixes\n- Media bridge no longer hangs on start, and cover art loads reliably.\n- The notch picks up installed or removed droplets within a few seconds, without needing a hover.\n- The agents panel resizes with the number of live sessions and no longer clips at the bottom.\n\n#### Privacy\n- Everything is local: droplets read your own session logs and media state, with no network calls and no token use."
     }
   }
 }

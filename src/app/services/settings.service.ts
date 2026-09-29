@@ -23,6 +23,8 @@ export interface AppSettings {
   /** Optional remembered Jira key (e.g. `VERL-12`) that prefills the issue
    *  picker on /vacation. Null = no remembered ticket (user picks each time). */
   defaultVacationIssueKey: string | null;
+  /** Which island droplets are switched on (id → enabled). Missing = default. */
+  droplets: Record<string, boolean>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -40,6 +42,7 @@ export class SettingsService {
     notchDisplayId: null,
     defaultVacationHours: 8,
     defaultVacationIssueKey: null,
+    droplets: {},
   });
 
   readonly settings = this._settings.asReadonly();

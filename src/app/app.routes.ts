@@ -23,6 +23,14 @@ export const routes: Routes = [
     title: 'Issues',
   },
   {
+    path: 'backlog',
+    loadComponent: () =>
+      import('./pages/backlog/backlog.component').then(
+        (m) => m.BacklogComponent,
+      ),
+    title: 'Backlog',
+  },
+  {
     path: 'projects',
     loadComponent: () =>
       import('./pages/projects/projects.component').then(

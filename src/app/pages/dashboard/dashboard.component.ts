@@ -46,7 +46,6 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
       <div class="min-w-0">
         <h1 class="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
         <div class="mt-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span class="inline-block size-1.5 rounded-full bg-primary animate-pulse"></span>
           {{ displayDate() }}
         </div>
       </div>
@@ -71,7 +70,7 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
         <span class="mx-0.5 hidden h-6 w-px bg-border/60 sm:block"></span>
 
         <!-- Date navigator -->
-        <div class="flex items-center gap-1 rounded-xl border border-border/50 bg-card/60 p-1 backdrop-blur-md shadow-sm">
+ <div class="flex items-center gap-1 rounded-xl border border-border/50 bg-card/60 p-1 shadow-sm">
           <button
             class="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-all cursor-pointer"
             (click)="prevDay()"
@@ -83,7 +82,7 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
             </svg>
           </button>
           <button
-            class="px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all rounded-lg cursor-pointer"
+            class="px-3.5 py-1.5 text-[10px] font-black transition-all rounded-lg cursor-pointer"
             [class]="isToday() ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'"
             (click)="goToday()"
           >
@@ -104,7 +103,7 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
     </header>
 
     @if (errorMessage()) {
-      <div class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive-foreground backdrop-blur-md shadow-sm transition-all animate-in fade-in slide-in-from-top-2 duration-200">
+ <div class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive-foreground shadow-sm transition-all animate-in fade-in slide-in-from-top-2 duration-200">
         <div class="flex items-center gap-2">
           <svg class="size-4 shrink-0 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
@@ -230,8 +229,8 @@ export class DashboardComponent {
   
   displayDate = computed(() => {
     const date = this.selectedDate();
-    if (isSameDay(date, new Date())) return `Today — ${format(date, 'EEEE, MMMM d, yyyy')}`;
-    if (isSameDay(date, subDays(new Date(), 1))) return `Yesterday — ${format(date, 'EEEE, MMMM d, yyyy')}`;
+    if (isSameDay(date, new Date())) return `Today: ${format(date, 'EEEE, MMMM d, yyyy')}`;
+    if (isSameDay(date, subDays(new Date(), 1))) return `Yesterday: ${format(date, 'EEEE, MMMM d, yyyy')}`;
     return format(date, 'EEEE, MMMM d, yyyy');
   });
 

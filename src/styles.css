@@ -137,7 +137,7 @@ html.timer-window-active app-timer-window {
 @layer components {
   /* Shared surface for cards and panels */
   .app-card {
-    @apply rounded-2xl border border-border/50 bg-card/70 backdrop-blur-md shadow-sm;
+    @apply rounded-2xl border border-border/50 bg-card/70 shadow-sm;
     box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 8px 24px -18px hsl(var(--shadow-color) / 0.35);
   }
   .app-card-interactive {
@@ -146,7 +146,7 @@ html.timer-window-active app-timer-window {
 
   /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap;
   }
   .btn-primary {
     @apply bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:bg-primary/90;
@@ -166,11 +166,11 @@ html.timer-window-active app-timer-window {
 
   /* Inputs */
   .app-input {
-    @apply w-full rounded-xl border border-border/50 bg-background/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:border-transparent;
+    @apply w-full rounded-xl border border-border/50 bg-background/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:border-transparent;
   }
 
   /* Small pill/badge */
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider;
+    @apply inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-[10px] font-bold;
   }
 }

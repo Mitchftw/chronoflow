@@ -22,7 +22,7 @@ import { COLOR_PRESETS, colorFromId } from '../../utils/colors';
       <div class="space-y-4">
         <!-- Title -->
         <div>
-          <label for="issue-title" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+          <label for="issue-title" class="mb-2 block text-xs font-bold text-muted-foreground">
             Title <span class="text-primary">*</span>
           </label>
           <input
@@ -31,14 +31,14 @@ import { COLOR_PRESETS, colorFromId } from '../../utils/colors';
             [value]="title()"
             (input)="title.set($any($event.target).value)"
             placeholder="What needs to be tracked?"
-            class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+            class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
             autofocus
           />
         </div>
 
         <!-- Description -->
         <div>
-          <label for="issue-desc" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+          <label for="issue-desc" class="mb-2 block text-xs font-bold text-muted-foreground">
             Description
           </label>
           <textarea
@@ -47,14 +47,14 @@ import { COLOR_PRESETS, colorFromId } from '../../utils/colors';
             (input)="description.set($any($event.target).value)"
             placeholder="Add context or notes..."
             rows="3"
-            class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner resize-none"
+            class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner resize-none"
           ></textarea>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <!-- Project -->
           <div>
-            <label for="issue-project" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            <label for="issue-project" class="mb-2 block text-xs font-bold text-muted-foreground">
               Project
             </label>
             <select
@@ -72,7 +72,7 @@ import { COLOR_PRESETS, colorFromId } from '../../utils/colors';
 
           <!-- Status -->
           <div>
-            <label for="issue-status" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            <label for="issue-status" class="mb-2 block text-xs font-bold text-muted-foreground">
               Status
             </label>
             <select
@@ -91,7 +91,7 @@ import { COLOR_PRESETS, colorFromId } from '../../utils/colors';
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <!-- Jira Issue Key -->
           <div>
-            <label for="issue-jira-key" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            <label for="issue-jira-key" class="mb-2 block text-xs font-bold text-muted-foreground">
               Jira Issue Key
             </label>
             <input
@@ -100,13 +100,13 @@ import { COLOR_PRESETS, colorFromId } from '../../utils/colors';
               [value]="jiraIssueKey()"
               (input)="jiraIssueKey.set($any($event.target).value)"
               placeholder="e.g., PROJ-123"
-              class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+              class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
             />
           </div>
 
           <!-- Estimate -->
           <div>
-            <label for="issue-estimate" class="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+            <label for="issue-estimate" class="mb-2 block text-xs font-bold text-muted-foreground">
               Estimate (minutes)
             </label>
             <input
@@ -116,14 +116,14 @@ import { COLOR_PRESETS, colorFromId } from '../../utils/colors';
               (input)="estimate.set($any($event.target).valueAsNumber ?? 0)"
               min="0"
               placeholder="0"
-              class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+              class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
             />
           </div>
         </div>
 
         <!-- Accent Colour -->
         <div class="select-none">
-          <label class="mb-2.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+          <label class="mb-2.5 block text-xs font-bold text-muted-foreground">
             Accent Colour
           </label>
           <div class="flex flex-wrap items-center gap-2.5">

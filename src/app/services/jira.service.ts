@@ -1,5 +1,5 @@
 import { Injectable, inject, computed, signal } from '@angular/core';
-import type { JiraConnection, JiraIssue, TimeEntry, IpcResponse } from '../../types';
+import type { JiraConnection, JiraIssue, BacklogIssue, BacklogProject, BacklogSprint, TimeEntry, IpcResponse } from '../../types';
 import { formatJiraLocalIso } from '../utils/datetime';
 
 @Injectable({ providedIn: 'root' })
@@ -132,8 +132,7 @@ export class JiraService {
   // ── Issue Search ──
 
   /** Search Jira issues across all active connections */
-  async searchIssues(query: string, connectionId?: string): Promise<JiraIssue[]> {
-    const api = this.getJiraApi();
+  async searchIssues(query: string, connectionId?: string): Promise<JiraIssue[]> {    const api = this.getJiraApi();
     if (!api || !query.trim()) return [];
 
     const allIssues: JiraIssue[] = [];
@@ -162,6 +161,64 @@ export class JiraService {
     }
 
     return allIssues;
+  }
+
+  // ── Backlog ──
+
+  /** Connection params shared by the backlog IPC calls. */
+  private backlogConnectionParams(): Record<string, unknown> | null {
+    const conn = this.activeConnection();
+    if (!conn) return null;
+    return {
+      connectionId: conn.id,
+      id: conn.id,
+      authType: conn.authType ?? 'api-key',
+      domain: conn.domain,
+      cloudId: conn.cloudId ?? undefined,
+      email: conn.email,
+      apiToken: conn.apiToken,
+      accessToken: conn.accessToken,
+    };
+  }
+
+  /**
+   * Issues assigned to the current Jira user, filtered by project and sprint.
+   * `sprint` accepts 'current' (default), 'all', or a numeric sprint id.
+   */
+  async getBacklog(params: {
+    projectKey?: string;
+    sprint?: string;
+  }): Promise<
+    IpcResponse & {
+      issues?: BacklogIssue[];
+      sprintFallback?: boolean;
+      truncated?: boolean;
+    }
+  > {
+    const api = this.getJiraApi();
+    const base = this.backlogConnectionParams();
+    if (!api || !base) {
+      return { success: false, error: 'No Jira connection configured' };
+    }
+    return api.backlog({
+      ...base,
+      projectKey: params.projectKey,
+      sprint: params.sprint ?? 'current',
+    });
+  }
+
+  /** Projects + sprints for the backlog filter dropdowns. */
+  async getBacklogFilters(params: {
+    projectKey?: string;
+  } = {}): Promise<
+    IpcResponse & { projects?: BacklogProject[]; sprints?: BacklogSprint[] }
+  > {
+    const api = this.getJiraApi();
+    const base = this.backlogConnectionParams();
+    if (!api || !base) {
+      return { success: false, error: 'No Jira connection configured' };
+    }
+    return api.backlogFilters({ ...base, projectKey: params.projectKey });
   }
 
   // ── Worklog Sync ──
