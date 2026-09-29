@@ -14,9 +14,9 @@ export interface HeatmapDay {
 }
 
 /**
- * Week overview as a tinted heatmap: one cell per day, opacity encoding how
- * much of the daily goal was tracked, so a whole week's gaps read at a glance.
- * Clicking a cell navigates the dashboard to that day.
+ * Vertical week overview. Each row is a day with a bar showing how much of the
+ * daily goal was tracked, so a whole week's gaps read at a glance. Clicking a
+ * row navigates the dashboard to that day.
  */
 @Component({
   selector: 'app-week-heatmap',
@@ -25,50 +25,44 @@ export interface HeatmapDay {
   template: `
     <section class="app-card p-4">
       <div class="mb-3 flex items-center justify-between">
-        <span class="text-[10px] font-semibold text-muted-foreground">This week</span>
-        <span class="text-[10px] font-medium text-muted-foreground">
-          <b class="font-mono font-semibold tabular-nums text-foreground">{{ formatDuration(weekTotal()) }}</b>
-          · {{ activeDays() }}/7 days
+        <span class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">This week</span>
+        <span class="text-[10px] font-semibold text-muted-foreground/70">
+          <b class="text-foreground">{{ formatDuration(weekTotal()) }}</b> · {{ activeDays() }}/7 days
         </span>
       </div>
 
-      <div class="grid grid-cols-7 gap-1.5">
+      <div class="space-y-0.5">
         @for (day of days(); track day.date) {
           <button
             type="button"
-            class="group flex flex-col items-center gap-1.5 rounded-lg p-1 transition-all duration-200 cursor-pointer"
+            class="group flex w-full items-center gap-3 rounded-lg border px-2 py-1.5 transition-all duration-200 cursor-pointer"
+            [class]="day.isSelected ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-secondary/50'"
             (click)="daySelected.emit(day.date)"
             [title]="tooltip(day)"
             [attr.aria-label]="tooltip(day)"
             [attr.aria-current]="day.isSelected ? 'date' : undefined"
           >
             <span
-              class="text-[10px] font-semibold"
-              [class]="day.isToday || day.isSelected ? 'text-primary' : 'text-muted-foreground'"
+              class="w-8 shrink-0 text-left text-[10px] font-bold uppercase tracking-wider"
+              [class]="day.isToday || day.isSelected ? 'text-primary' : 'text-muted-foreground/60'"
             >{{ day.weekday }}</span>
 
-            <span
-              class="relative flex h-11 w-full items-center justify-center rounded-lg border transition-all duration-300"
-              [class]="cellClass(day)"
-              [style.background-color]="cellColor(day)"
-            >
+            <span class="relative h-2 flex-1 overflow-hidden rounded-full bg-muted/50">
               <span
-                class="font-mono text-[11px] font-semibold tabular-nums"
-                [class]="day.minutes > 0 ? 'text-foreground' : 'text-muted-foreground'"
-              >{{ day.dayNumber }}</span>
+                class="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+                [style.width.%]="pct(day.minutes)"
+                [style.background-color]="intensityColor(day.minutes)"
+              ></span>
+            </span>
+
+            <span
+              class="w-11 shrink-0 text-right font-mono text-[10px] font-semibold tabular-nums"
+              [class]="day.minutes > 0 ? 'text-foreground/80' : 'text-muted-foreground/35'"
+            >
+              {{ day.minutes > 0 ? shortDuration(day.minutes) : '—' }}
             </span>
           </button>
         }
-      </div>
-
-      <div class="mt-3 flex items-center justify-end gap-1.5 text-[10px] font-medium text-muted-foreground">
-        <span>Less</span>
-        <span class="size-2.5 rounded-[3px] bg-muted"></span>
-        <span class="size-2.5 rounded-[3px]" [style.background-color]="intensityColor(goalMinutes() * 0.15)"></span>
-        <span class="size-2.5 rounded-[3px]" [style.background-color]="intensityColor(goalMinutes() * 0.4)"></span>
-        <span class="size-2.5 rounded-[3px]" [style.background-color]="intensityColor(goalMinutes() * 0.7)"></span>
-        <span class="size-2.5 rounded-[3px]" [style.background-color]="intensityColor(goalMinutes())"></span>
-        <span>More</span>
       </div>
     </section>
   `,
@@ -83,29 +77,29 @@ export class WeekHeatmapComponent {
 
   readonly activeDays = computed(() => this.days().filter((day) => day.minutes > 0).length);
 
-  cellColor(day: HeatmapDay): string | null {
-    if (day.minutes <= 0) return null;
-    return this.intensityColor(day.minutes);
-  }
-
-  cellClass(day: HeatmapDay): string {
-    if (day.isSelected) return 'border-primary ring-2 ring-primary/30';
-    if (day.isToday) return 'border-primary/50';
-    return day.minutes > 0 ? 'border-transparent' : 'border-border/60 bg-muted/40';
+  pct(minutes: number): number {
+    return Math.min(100, (minutes / Math.max(1, this.goalMinutes())) * 100);
   }
 
   intensityColor(minutes: number): string {
     if (minutes <= 0) return 'transparent';
     const ratio = minutes / Math.max(1, this.goalMinutes());
-    if (ratio < 0.25) return 'hsl(var(--primary) / 0.22)';
-    if (ratio < 0.5) return 'hsl(var(--primary) / 0.42)';
-    if (ratio < 0.85) return 'hsl(var(--primary) / 0.68)';
-    return 'hsl(var(--primary) / 0.9)';
+    if (ratio < 0.25) return 'hsl(var(--primary) / 0.35)';
+    if (ratio < 0.5) return 'hsl(var(--primary) / 0.55)';
+    if (ratio < 0.85) return 'hsl(var(--primary) / 0.8)';
+    return 'hsl(var(--primary))';
   }
 
   tooltip(day: HeatmapDay): string {
     const tracked = day.minutes > 0 ? this.formatDuration(day.minutes) : 'nothing tracked';
-    return `${day.weekday}, ${day.date}: ${tracked}`;
+    return `${day.weekday} ${day.date} · ${tracked}`;
+  }
+
+  shortDuration(minutes: number): string {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h > 0) return m > 0 ? `${h}h${m}` : `${h}h`;
+    return `${m}m`;
   }
 
   formatDuration(minutes: number): string {

@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.20\n\n#### Highlights\n- **Backlog status filter:** filter your backlog by Jira status (To Do, In Progress, Done…), with a count per status.\n- **Original and remaining estimate:** every backlog issue now shows its original estimate and the time remaining. Remaining turns amber when it is used up or above the original.\n\n#### Also\n- Includes everything from 0.1.19: the Droplet Store, live Agents and Media droplets."
+      "releaseNotes": "### ChronoFlow v0.1.21\n\n#### Changes\n- **Week overview restored:** the dashboard week panel is back to one bar per day with the tracked hours on the right, and the selected day is outlined.\n\n#### Also\n- Includes the Backlog status filter and original/remaining estimates from 0.1.20, and the Droplet Store, Agents and Media droplets from 0.1.19."
     }
   }
 }
