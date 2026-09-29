@@ -730,7 +730,7 @@ export function registerJiraHandlers() {
   }
 
   const BACKLOG_FIELDS =
-    "key,summary,status,priority,issuetype,project,labels,timeoriginalestimate,updated,duedate";
+    "key,summary,status,priority,issuetype,project,labels,timeoriginalestimate,timeestimate,updated,duedate";
 
   /** Issues assigned to the current user, filtered by project and sprint. */
   ipcMain.handle("jira:backlog", async (_, params) => {
@@ -781,6 +781,10 @@ export function registerJiraHandlers() {
           estimateMinutes: estimateSeconds
             ? Math.round(estimateSeconds / 60)
             : undefined,
+          remainingMinutes:
+            typeof f.timeestimate === "number"
+              ? Math.round(f.timeestimate / 60)
+              : undefined,
           updated: f.updated ? Date.parse(f.updated) || 0 : 0,
           duedate: f.duedate ?? null,
         };

@@ -72,7 +72,10 @@ export interface BacklogIssue {
   projectKey: string;
   projectName: string;
   labels: string[];
+  /** Original estimate. */
   estimateMinutes?: number;
+  /** Remaining estimate (Jira "timeestimate"). */
+  remainingMinutes?: number;
   /** Epoch ms of the last update; 0 when Jira did not return one. */
   updated: number;
   duedate?: string | null;

@@ -123,8 +123,29 @@ import type { BacklogIssue, BacklogProject, BacklogSprint } from '../../../types
           </div>
         </div>
 
+        @if (statuses().length > 0) {
+          <div class="relative">
+            <select
+              class="appearance-none rounded-xl border border-border/40 bg-card/65 pl-4 pr-10 py-2.5 text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm cursor-pointer"
+              aria-label="Filter by status"
+              [value]="statusFilter()"
+              (change)="statusFilter.set($any($event.target).value)"
+            >
+              <option value="">All statuses</option>
+              @for (s of statuses(); track s.name) {
+                <option [value]="s.name">{{ s.name }} ({{ s.count }})</option>
+              }
+            </select>
+            <div class="absolute inset-y-0 right-3 flex items-center pointer-events-none text-muted-foreground">
+              <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+        }
+
         <span class="ml-auto text-xs font-semibold text-muted-foreground">
-          {{ issues().length }} {{ issues().length === 1 ? 'issue' : 'issues' }}{{ truncated() ? ' (first 100)' : '' }}
+          {{ filteredIssues().length }} {{ filteredIssues().length === 1 ? 'issue' : 'issues' }}{{ truncated() ? ' (first 100)' : '' }}
         </span>
       </div>
 
@@ -158,7 +179,7 @@ import type { BacklogIssue, BacklogProject, BacklogSprint } from '../../../types
             </div>
           }
         </div>
-      } @else if (!errorMessage() && issues().length === 0) {
+      } @else if (!errorMessage() && filteredIssues().length === 0) {
         <!-- Empty -->
         <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/50 bg-card/25 py-16 text-center select-none">
           <div class="flex size-12 items-center justify-center rounded-full bg-muted/40 mb-4 text-muted-foreground">
@@ -175,7 +196,7 @@ import type { BacklogIssue, BacklogProject, BacklogSprint } from '../../../types
           </p>
           <p class="mt-1 max-w-sm px-6 text-xs text-muted-foreground mb-4">
             @if (hasActiveFilters()) {
-              Try another project or sprint.
+              Try another project, sprint or status.
             } @else {
               Issues assigned to you in Jira will show up here.
             }
@@ -184,10 +205,10 @@ import type { BacklogIssue, BacklogProject, BacklogSprint } from '../../../types
             <button class="btn btn-secondary" (click)="clearFilters()">Clear filters</button>
           }
         </div>
-      } @else if (issues().length > 0) {
+      } @else if (filteredIssues().length > 0) {
         <!-- Issue list -->
         <div class="space-y-3">
-          @for (issue of issues(); track issue.key) {
+          @for (issue of filteredIssues(); track issue.key) {
             <div
               class="flex items-center gap-4 rounded-2xl border border-border/40 bg-card/65 px-5 py-4 transition-all duration-300 hover:bg-secondary/45 hover:border-primary/20 hover:shadow-sm select-none"
               [class]="isRunning(issue) ? 'border-primary/30 bg-primary/[0.02]' : ''"
@@ -233,12 +254,14 @@ import type { BacklogIssue, BacklogProject, BacklogSprint } from '../../../types
                   @if (issue.projectName) {
                     <span class="font-medium">{{ issue.projectName }}</span>
                   }
-                  @if (issue.estimateMinutes) {
-                    <span class="flex items-center gap-1 font-medium">
+                  @if (issue.estimateMinutes !== undefined || issue.remainingMinutes !== undefined) {
+                    <span class="flex items-center gap-1 font-medium" title="Original estimate / remaining">
                       <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      {{ formatMinutes(issue.estimateMinutes) }}
+                      <span>Original {{ issue.estimateMinutes !== undefined ? formatMinutes(issue.estimateMinutes) : '–' }}</span>
+                      <span class="text-border">·</span>
+                      <span [class]="remainingClass(issue)">Remaining {{ issue.remainingMinutes !== undefined ? formatMinutes(issue.remainingMinutes) : '–' }}</span>
                     </span>
                   }
                   @if (issue.duedate) {
@@ -285,6 +308,8 @@ export class BacklogComponent implements OnInit {
   readonly sprints = signal<BacklogSprint[]>([]);
   readonly projectFilter = signal('');
   readonly sprintFilter = signal('current');
+  /** Status name to show; '' = all. Applied client-side to the loaded issues. */
+  readonly statusFilter = signal('');
   readonly errorMessage = signal<string | null>(null);
   readonly notice = signal<string | null>(null);
   readonly truncated = signal(false);
@@ -293,8 +318,30 @@ export class BacklogComponent implements OnInit {
   private requestSeq = 0;
 
   readonly hasActiveFilters = computed(
-    () => this.projectFilter() !== '' || this.sprintFilter() !== 'current',
+    () =>
+      this.projectFilter() !== '' ||
+      this.sprintFilter() !== 'current' ||
+      this.statusFilter() !== '',
   );
+
+  /** Distinct statuses in the loaded issues, to-do first and done last. */
+  readonly statuses = computed(() => {
+    const order: Record<string, number> = { new: 0, indeterminate: 1, done: 2 };
+    const byName = new Map<string, { name: string; category: string; count: number }>();
+    for (const issue of this.issues()) {
+      const entry = byName.get(issue.status);
+      if (entry) entry.count++;
+      else byName.set(issue.status, { name: issue.status, category: issue.statusCategory, count: 1 });
+    }
+    return [...byName.values()].sort(
+      (a, b) => (order[a.category] ?? 1) - (order[b.category] ?? 1) || a.name.localeCompare(b.name),
+    );
+  });
+
+  readonly filteredIssues = computed(() => {
+    const status = this.statusFilter();
+    return status ? this.issues().filter((i) => i.status === status) : this.issues();
+  });
 
   readonly runningKey = computed(() =>
     this.timer.isRunning() ? (this.timer.activeIssue()?.jiraIssueKey ?? '') : '',
@@ -335,6 +382,7 @@ export class BacklogComponent implements OnInit {
   async clearFilters(): Promise<void> {
     this.projectFilter.set('');
     this.sprintFilter.set('current');
+    this.statusFilter.set('');
     await Promise.all([this.loadFilters(), this.loadIssues()]);
   }
 
@@ -403,7 +451,19 @@ export class BacklogComponent implements OnInit {
     }
   }
 
+  /** Remaining time turns amber when it is used up or above the original estimate. */
+  remainingClass(issue: BacklogIssue): string {
+    const remaining = issue.remainingMinutes;
+    if (remaining === undefined) return '';
+    const original = issue.estimateMinutes;
+    if (remaining === 0 || (original !== undefined && remaining > original)) {
+      return 'text-amber-600 dark:text-amber-400 font-semibold';
+    }
+    return '';
+  }
+
   formatMinutes(minutes: number): string {
+    if (minutes === 0) return '0m';
     if (minutes < 60) return `${minutes}m`;
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
@@ -471,6 +531,10 @@ export class BacklogComponent implements OnInit {
       }
 
       this.issues.set(res.issues ?? []);
+      // A status that no longer exists in the reloaded list would hide everything.
+      if (this.statusFilter() && !this.issues().some((i) => i.status === this.statusFilter())) {
+        this.statusFilter.set('');
+      }
       this.truncated.set(!!res.truncated);
       this.notice.set(
         res.sprintFallback

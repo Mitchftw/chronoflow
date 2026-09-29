@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -95,7 +95,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.19\n\n#### Highlights\n- **Droplet Store:** the notch add-ons are now a marketplace in Settings. Browse Timer, Media and Agents, open a card for details and features, and install or remove with one click.\n- **Agents droplet, live:** see Claude Code and Codex sessions in the notch: the current tool call, the file or command, lines added and removed, and tool-call count, plus real Claude and OpenAI logos.\n- **Usage limits:** 5-hour and weekly limits for Claude and Codex as progress bars with time to reset. Codex reads its local logs; Claude limits need a terminal Claude Code session (Pro/Max) with the statusLine hook.\n- **Media droplet:** now playing in the notch with cover art and previous/pause/next controls, driven by Windows media sessions (Spotify, browsers and more).\n\n#### Fixes\n- Media bridge no longer hangs on start, and cover art loads reliably.\n- The notch picks up installed or removed droplets within a few seconds, without needing a hover.\n- The agents panel resizes with the number of live sessions and no longer clips at the bottom.\n\n#### Privacy\n- Everything is local: droplets read your own session logs and media state, with no network calls and no token use."
+      "releaseNotes": "### ChronoFlow v0.1.20\n\n#### Highlights\n- **Backlog status filter:** filter your backlog by Jira status (To Do, In Progress, Done…), with a count per status.\n- **Original and remaining estimate:** every backlog issue now shows its original estimate and the time remaining. Remaining turns amber when it is used up or above the original.\n\n#### Also\n- Includes everything from 0.1.19: the Droplet Store, live Agents and Media droplets."
     }
   }
 }
