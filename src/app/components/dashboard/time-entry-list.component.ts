@@ -41,46 +41,38 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
         </button>
       </div>
     } @else {
- <div class="overflow-hidden rounded-2xl border border-border/40 bg-card/65 shadow-sm">
-        <div class="overflow-x-auto">
-          <table class="w-full border-collapse">
-            <thead>
-              <tr class="border-b border-border/40 bg-muted/40 text-muted-foreground">
-                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">Issue</th>
-                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">Start</th>
-                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">End</th>
-                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">Duration</th>
-                <th class="px-5 py-3.5 text-left text-[11px] font-semibold">Note</th>
-                <th class="px-5 py-3.5 text-right text-[11px] font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-border/30">
-              @for (entry of entries(); track entry.id) {
-                <tr
-                  class="transition-colors hover:bg-secondary/45 text-foreground/90"
-                  [class]="isActiveEntry(entry) ? 'bg-primary/[0.05]' : ''"
-                >
-                  <td class="px-5 py-4 text-sm font-semibold text-foreground/95">
-                    <span class="flex items-center gap-2.5 min-w-0">
-                      <span
-                        class="size-2.5 shrink-0 rounded-full"
-                        [style.background-color]="getIssueColor(entry.issueId)"
-                        aria-hidden="true"
-                      ></span>
-                      <span class="truncate">{{ getIssueName(entry.issueId) }}</span>
-                    </span>
-                  </td>
-                  <td class="px-5 py-4 text-sm font-mono text-muted-foreground">{{ entry.startTime }}</td>
-                  <td class="px-5 py-4 text-sm font-mono text-muted-foreground">{{ entry.endTime ?? '-' }}</td>
-                  <td class="px-5 py-4 text-sm font-mono font-bold text-primary">
-                    {{ formatDuration(entry) }}
-                  </td>
-                  <td class="max-w-48 truncate px-5 py-4 text-sm text-muted-foreground">
-                    {{ entry.note || '-' }}
-                  </td>
-                  <td class="px-5 py-4">
-                    <div class="flex justify-end gap-1">
-                    <!-- Same play/running button as the issue cards: a filled
+<div class="@container overflow-hidden rounded-2xl border border-border/40 bg-card/65 shadow-sm">
+        @let cols = '@2xl:grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem_auto] @4xl:grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem_minmax(0,14rem)_auto]';
+        <div class="hidden @2xl:grid gap-x-4 border-b border-border/40 bg-muted/40 px-5 py-3 text-[11px] font-semibold text-muted-foreground"
+             [class]="cols">
+          <span>Issue</span><span>Start</span><span>End</span><span>Duration</span>
+          <span class="hidden @4xl:block">Note</span><span class="text-right">Actions</span>
+        </div>
+        <div class="divide-y divide-border/30">
+          @for (entry of entries(); track entry.id) {
+            <div
+              class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 @2xl:px-5 transition-colors hover:bg-secondary/45 text-foreground/90"
+              [class]="cols + (isActiveEntry(entry) ? ' bg-primary/[0.05]' : '')"
+            >
+              <span class="flex min-w-0 items-center gap-2.5 text-sm font-semibold text-foreground/95" [title]="getIssueName(entry.issueId)">
+                <span class="size-2.5 shrink-0 rounded-full" [style.background-color]="getIssueColor(entry.issueId)" aria-hidden="true"></span>
+                @if (getIssueKey(entry.issueId); as key) {
+                  <span class="shrink-0 rounded-md bg-secondary/60 px-1.5 py-0.5 font-mono text-[11px] font-bold text-muted-foreground">{{ key }}</span>
+                }
+                <span class="truncate">{{ getIssueTitle(entry.issueId) }}</span>
+              </span>
+              <span class="col-span-full flex items-baseline gap-3 font-mono text-xs text-muted-foreground @2xl:contents @2xl:text-sm">
+                <span>{{ entry.startTime }}<span class="@2xl:hidden"> – {{ entry.endTime ?? 'now' }}</span></span>
+                <span class="hidden @2xl:inline">{{ entry.endTime ?? '-' }}</span>
+                <span class="font-bold text-primary">{{ formatDuration(entry) }}</span>
+              </span>
+              @if (entry.note) {
+                <span class="col-span-full truncate text-xs text-muted-foreground @4xl:col-span-1 @4xl:text-sm" [title]="entry.note">{{ entry.note }}</span>
+              } @else {
+                <span class="hidden text-sm text-muted-foreground @4xl:block">-</span>
+              }
+              <div class="col-start-2 row-start-1 flex shrink-0 justify-end gap-1 @2xl:col-auto @2xl:row-auto">
+                <!-- Same play/running button as the issue cards: a filled
                          play triangle, or a pulsing dot on the entry that is
                          currently being tracked. -->
                     <button
@@ -133,11 +125,8 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
                       </svg>
                     </button>
                     </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+            </div>
+          }
         </div>
       </div>
     }
@@ -175,6 +164,15 @@ export class TimeEntryListComponent {
     const issue = this.issues().find((i) => i.id === issueId);
     if (!issue) return issueId.slice(0, 8);
     return issue.jiraIssueKey ? `${issue.jiraIssueKey} ${issue.title}` : issue.title;
+  }
+
+  getIssueKey(issueId: string): string {
+    return this.issues().find((i) => i.id === issueId)?.jiraIssueKey ?? '';
+  }
+
+  getIssueTitle(issueId: string): string {
+    const issue = this.issues().find((i) => i.id === issueId);
+    return issue ? issue.title : issueId.slice(0, 8);
   }
 
   getIssueColor(issueId: string): string {
