@@ -160,7 +160,7 @@ function handleDeepLink(url: string) {
 
 // ---- Auto Updater ----
 
-function initAutoUpdater() {
+function initAutoUpdater(checkOnStartup: boolean) {
   autoUpdater.logger = logger;
 
   autoUpdater.on("checking-for-update", () => {
@@ -194,7 +194,11 @@ function initAutoUpdater() {
     }
   });
 
-  autoUpdater.checkForUpdatesAndNotify();
+  if (checkOnStartup) {
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+      logger.error("Initial update check failed:", err);
+    });
+  }
 }
 
 function registerUpdaterHandlers() {
@@ -246,6 +250,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 420,
     height: 800,
+    minWidth: 900,
+    minHeight: 600,
     frame: false,
     transparent: false,
     backgroundColor: "#1a1a1a",
@@ -867,6 +873,7 @@ app.whenReady().then(async () => {
   // also re-applied via IPC when the user toggles the setting, so this is
   // only needed because SettingsService.load() bypasses update() and we
   // would otherwise miss the initial preference.
+  let autoUpdateOnStartup = true;
   try {
     const appSettings = (await db.getSetting("app")) as
       | Record<string, unknown>
@@ -881,6 +888,10 @@ app.whenReady().then(async () => {
     if (appSettings && typeof appSettings["notchDisplayId"] === "number") {
       notchDisplayId = appSettings["notchDisplayId"] as number;
       logger.info(`Notch display primed from settings: ${notchDisplayId}`);
+    }
+    if (appSettings && typeof appSettings["autoUpdate"] === "boolean") {
+      autoUpdateOnStartup = appSettings["autoUpdate"] as boolean;
+      logger.info(`Startup update check enabled: ${autoUpdateOnStartup}`);
     }
   } catch (err) {
     logger.error("Failed to prime auto-hide from settings:", err);
@@ -903,9 +914,11 @@ app.whenReady().then(async () => {
 
   createWindow();
 
-  if (process.env['NODE_ENV'] !== "development") {
-    initAutoUpdater();
-  }
+  // Register updater listeners in every build; only the automatic startup
+  // check is gated by the persisted setting and the development environment.
+  initAutoUpdater(
+    process.env['NODE_ENV'] !== "development" && autoUpdateOnStartup,
+  );
 
   logger.info("Application started successfully");
 });

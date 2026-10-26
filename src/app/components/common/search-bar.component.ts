@@ -45,10 +45,12 @@ export type SearchResult =
       id?: string;
     };
 
+let nextSearchBarId = 0;
+
 @Component({
   selector: 'app-search-bar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block relative z-10 select-none w-full h-full' },
+  host: { class: 'block relative z-10 w-full h-full' },
   template: `
     <div class="relative w-full h-full flex items-center">
       <!-- Search icon -->
@@ -71,43 +73,70 @@ export type SearchResult =
       @if (variant() === 'notch') {
         <input
           type="text"
+          role="combobox"
+          aria-haspopup="listbox"
+          [attr.aria-label]="placeholder()"
+          [attr.aria-expanded]="showDropdown()"
+          [attr.aria-controls]="listboxId"
+          [attr.aria-autocomplete]="'list'"
+          [attr.aria-activedescendant]="activeIndex() >= 0 ? optionId(activeIndex()) : null"
+          autocomplete="off"
           [value]="query()"
           (input)="onInput($event)"
           (focus)="onFocus()"
           (blur)="onBlur()"
-          (keydown.escape)="focused.set(false)"
+          (keydown)="onKeydown($event)"
           [placeholder]="placeholder()"
           class="w-full bg-transparent border-none h-[36px] pl-7 pr-7 text-[11px] text-white placeholder:text-zinc-400/60 focus:outline-none caret-primary selection:bg-primary/40"
         />
       } @else if (variant() === 'draggable') {
         <input
           type="text"
+          role="combobox"
+          aria-haspopup="listbox"
+          [attr.aria-label]="placeholder()"
+          [attr.aria-expanded]="showDropdown()"
+          [attr.aria-controls]="listboxId"
+          [attr.aria-autocomplete]="'list'"
+          [attr.aria-activedescendant]="activeIndex() >= 0 ? optionId(activeIndex()) : null"
+          autocomplete="off"
           [value]="query()"
           (input)="onInput($event)"
           (focus)="onFocus()"
           (blur)="onBlur()"
-          (keydown.escape)="focused.set(false)"
+          (keydown)="onKeydown($event)"
           [placeholder]="placeholder()"
           class="w-full rounded-xl border border-border/40 bg-zinc-900/60 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1.5 focus:ring-primary/40 focus:border-transparent transition-all duration-300"
         />
       } @else {
         <input
           type="text"
+          role="combobox"
+          aria-haspopup="listbox"
+          [attr.aria-label]="placeholder()"
+          [attr.aria-expanded]="showDropdown()"
+          [attr.aria-controls]="listboxId"
+          [attr.aria-autocomplete]="'list'"
+          [attr.aria-activedescendant]="activeIndex() >= 0 ? optionId(activeIndex()) : null"
+          autocomplete="off"
           [value]="query()"
           (input)="onInput($event)"
           (focus)="onFocus()"
           (blur)="onBlur()"
-          (keydown.escape)="focused.set(false)"
+          (keydown)="onKeydown($event)"
           [placeholder]="placeholder()"
           class="w-full rounded-xl border border-border/40 bg-card/65 py-3 pl-11 pr-11 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm"
         />
       }
 
-      <!-- Clear button -->
-      @if (query()) {
+      <!-- Clear button. Hidden while a Jira search is running so it cannot
+           sit underneath (and be clicked through) the spinner. -->
+      @if (query() && !searchingJira()) {
         <button
+          type="button"
           class="absolute inset-y-0 right-0 flex items-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           [class]="variant() === 'default' ? 'pr-3.5' : 'pr-2.5'"
+          (mousedown)="$event.preventDefault()"
           (click)="clear()"
           aria-label="Clear search"
         >
@@ -120,7 +149,7 @@ export type SearchResult =
       <!-- Spinner when searching Jira -->
       @if (searchingJira()) {
         <div 
-          class="absolute inset-y-0 right-0 flex items-center"
+          class="pointer-events-none absolute inset-y-0 right-0 flex items-center"
           [class]="variant() === 'default' ? 'pr-3.5' : 'pr-2.5'"
         >
           <div 
@@ -137,6 +166,9 @@ export type SearchResult =
     <!-- Results dropdown -->
     @if (showDropdown()) {
       <div
+        [id]="listboxId"
+        role="listbox"
+        aria-label="Search results"
         class="z-40 overflow-y-auto duration-200"
         [class]="variant() === 'notch' 
           ? 'fixed inset-x-0 top-[42px] max-h-[300px] rounded-b-2xl bg-zinc-900/98 backdrop-blur-xl border-t border-white/10 animate-in fade-in slide-in-from-top-1 px-3 py-2 shadow-2xl shadow-black/50' 
@@ -144,7 +176,16 @@ export type SearchResult =
           ? 'absolute left-0 right-0 top-full mt-2 max-h-60 rounded-xl border border-border/40 bg-zinc-950 shadow-xl animate-in fade-in slide-in-from-top-2 p-1.5'
           : 'absolute left-0 right-0 top-full mt-2 max-h-80 rounded-2xl border border-border/40 bg-card/90 backdrop-blur-lg shadow-2xl animate-in fade-in slide-in-from-top-2 p-1.5'"
       >
-        @if (results().length === 0 && !searchingJira()) {
+        @if (jiraError() && !searchingJira()) {
+          <div
+            class="mx-1 mb-1 mt-2 line-clamp-2 rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-xs font-semibold leading-snug text-destructive"
+            role="alert"
+          >
+            <span class="font-bold">Jira search failed.</span> {{ jiraError() }}
+          </div>
+        }
+
+        @if (results().length === 0 && !searchingJira() && !jiraError()) {
           @if (query().length >= 2 && jiraService.connections().length === 0) {
             <div class="px-4 py-6 text-center text-xs font-semibold text-muted-foreground space-y-1">
               <p class="italic">No Jira connection configured.</p>
@@ -159,26 +200,32 @@ export type SearchResult =
               }
             </div>
           }
-        } @else {
+        } @else if (results().length > 0) {
           @for (group of groupedResults(); track group.label) {
             <!-- Section header -->
             <div 
               class="flex items-center gap-2 font-bold mt-2 first:mt-0 mb-1 select-none"
               [class]="variant() === 'default' ? 'px-3 py-2 text-[10px] text-muted-foreground' : 'px-2 py-1.5 text-[9px] text-zinc-400'"
             >
-              <div class="h-px flex-1 bg-white/5"></div>
+              <div class="h-px flex-1" [class]="variant() === 'default' ? 'bg-border/60' : 'bg-white/5'"></div>
               {{ group.label }}
               <span class="text-[9px]" [class]="variant() === 'default' ? 'text-muted-foreground' : 'text-zinc-500'">({{ group.items.length }})</span>
-              <div class="h-px flex-1 bg-white/5"></div>
+              <div class="h-px flex-1" [class]="variant() === 'default' ? 'bg-border/60' : 'bg-white/5'"></div>
             </div>
 
             <!-- Results -->
             <div class="space-y-0.5">
               @for (result of group.items; track result.key) {
                 <button
-                  class="flex w-full items-center rounded-xl text-left transition-all duration-200 hover:bg-white/5 hover:translate-x-0.5 cursor-pointer"
-                  [class]="variant() === 'default' ? 'px-3.5 py-2.5 gap-3 text-sm' : 'px-3 py-2 gap-2.5 text-xs'"
-                  (mousedown)="$event.preventDefault(); selectResult(result)"
+                  type="button"
+                  role="option"
+                  tabindex="-1"
+                  [id]="optionId(resultIndex(result))"
+                  [attr.aria-selected]="activeIndex() === resultIndex(result) ? 'true' : 'false'"
+                  class="flex w-full items-center rounded-xl text-left transition-all duration-200 cursor-pointer"
+                  [class]="rowClass(result)"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="selectResult(result)"
                 >
                   <!-- Type icon -->
                   @if (result.type === 'jira') {
@@ -247,6 +294,12 @@ export class SearchBarComponent {
   /** Local issues to search through */
   readonly localIssues = input<Issue[]>([]);
 
+  /** Label used for the create-task action row */
+  readonly createActionLabel = input<string>('Create local task');
+
+  /** Whether the local "create issue" action is offered */
+  readonly showCreate = input(true);
+
   /** Emitted when a result is selected (clicked) */
   readonly resultSelected = output<SearchResult>();
 
@@ -261,6 +314,12 @@ export class SearchBarComponent {
 
   /** Searching Jira flag */
   readonly searchingJira = signal(false);
+
+  /** Human-readable Jira search failure, shown inside the dropdown. */
+  readonly jiraError = signal('');
+
+  /** Highlighted result in the flattened list (-1 = none). */
+  readonly activeIndex = signal(-1);
 
   /** Local results (filtered from input) */
   readonly localResults = computed(() => {
@@ -286,12 +345,12 @@ export class SearchBarComponent {
     const q = this.query().trim();
     const list: SearchResult[] = [];
 
-    if (q.length >= 2) {
+    if (q.length >= 2 && this.showCreate()) {
       list.push({
-        type: 'create' as any,
-        issue: { title: q } as any,
+        type: 'create',
+        issue: { title: q },
         key: 'NEW',
-        summary: `Create & start local task "${q}"`,
+        summary: `${this.createActionLabel() || 'Create local task'} "${q}"`,
       });
     }
 
@@ -311,11 +370,16 @@ export class SearchBarComponent {
     return [...list, ...local, ...jira];
   });
 
+  /** Flattened results, in the same order as the rendered groups. */
+  readonly flatResults = computed<SearchResult[]>(() =>
+    this.groupedResults().flatMap((group) => group.items),
+  );
+
   /** Grouped results for sectioned display */
   readonly groupedResults = computed(() => {
     const groups: Array<{ label: string; items: SearchResult[] }> = [];
 
-    const create = this.results().filter((r) => r.type === ('create' as any));
+    const create = this.results().filter((r) => r.type === 'create');
     if (create.length > 0) {
       groups.push({ label: 'Actions', items: create });
     }
@@ -333,13 +397,30 @@ export class SearchBarComponent {
     return groups;
   });
 
+  protected readonly listboxId = `search-listbox-${nextSearchBarId++}`;
+
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private blurTimer: ReturnType<typeof setTimeout> | null = null;
+  private searchRequestId = 0;
+  private destroyed = false;
+
   constructor() {
     effect(() => {
       this.dropdownVisible.emit(this.showDropdown());
     });
-  }
 
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+      this.cancelDebounce();
+      if (this.blurTimer) {
+        clearTimeout(this.blurTimer);
+        this.blurTimer = null;
+      }
+      // Invalidate any in-flight Jira response so it cannot touch signals
+      // after the component is gone.
+      this.searchRequestId++;
+    });
+  }
 
   /**
    * Called when the input gains focus. Ensures Jira connections are loaded
@@ -351,6 +432,10 @@ export class SearchBarComponent {
    * are actually missing — no IPC spam on repeat focus.
    */
   onFocus(): void {
+    if (this.blurTimer) {
+      clearTimeout(this.blurTimer);
+      this.blurTimer = null;
+    }
     this.focused.set(true);
     if (this.jiraService.connections().length === 0) {
       void this.jiraService.loadConnections();
@@ -359,16 +444,23 @@ export class SearchBarComponent {
 
   onInput(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
+    this.focused.set(true);
     this.query.set(value);
+    this.jiraError.set('');
+    this.activeIndex.set(-1);
 
-    // Debounce Jira search
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-    }
+    // Invalidate any in-flight response; only this newest query may update
+    // jiraResults/searchingJira.
+    this.searchRequestId++;
+    this.cancelDebounce();
 
     if (value.trim().length >= 2) {
       this.searchingJira.set(true);
-      this.debounceTimer = setTimeout(() => this.searchJira(value.trim()), 300);
+      const requestId = this.searchRequestId;
+      this.debounceTimer = setTimeout(() => {
+        this.debounceTimer = null;
+        void this.searchJira(value.trim(), requestId);
+      }, 300);
     } else {
       this.jiraResults.set([]);
       this.searchingJira.set(false);
@@ -376,32 +468,135 @@ export class SearchBarComponent {
   }
 
   onBlur(): void {
-    // Delay blur to allow click on dropdown items
-    setTimeout(() => this.focused.set(false), 200);
+    if (this.blurTimer) clearTimeout(this.blurTimer);
+    // Delay blur to allow click on dropdown items.
+    this.blurTimer = setTimeout(() => {
+      this.blurTimer = null;
+      if (this.destroyed) return;
+      this.focused.set(false);
+      this.activeIndex.set(-1);
+    }, 200);
   }
 
   clear(): void {
+    this.cancelDebounce();
+    this.searchRequestId++;
     this.query.set('');
     this.jiraResults.set([]);
+    this.jiraError.set('');
     this.searchingJira.set(false);
+    this.activeIndex.set(-1);
+  }
+
+  onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      // First Escape dismisses an open dropdown without closing an enclosing
+      // dialog; when the dropdown is already closed the event is left to
+      // bubble so a dialog can handle it.
+      if (this.showDropdown()) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.focused.set(false);
+        this.activeIndex.set(-1);
+      }
+      return;
+    }
+
+    const items = this.flatResults();
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (items.length === 0) return;
+      event.preventDefault();
+      this.focused.set(true);
+      const current = this.activeIndex();
+      const next = event.key === 'ArrowDown'
+        ? (current < 0 ? 0 : (current + 1) % items.length)
+        : (current <= 0 ? items.length - 1 : current - 1);
+      this.activeIndex.set(next);
+      this.scrollActiveIntoView(next);
+      return;
+    }
+
+    if (event.key === 'Enter' && this.activeIndex() >= 0) {
+      const active = items[this.activeIndex()];
+      if (active) {
+        event.preventDefault();
+        this.selectResult(active);
+      }
+    }
   }
 
   selectResult(result: SearchResult): void {
+    this.cancelDebounce();
+    this.searchRequestId++;
+    this.searchingJira.set(false);
     this.resultSelected.emit(result);
     this.focused.set(false);
+    this.activeIndex.set(-1);
   }
 
-  private async searchJira(query: string): Promise<void> {
+  /** Stable id for a flattened option, used by aria-activedescendant. */
+  protected optionId(index: number): string {
+    return `${this.listboxId}-option-${index}`;
+  }
+
+  /** Position of a result in the flattened list. */
+  protected resultIndex(result: SearchResult): number {
+    return this.flatResults().indexOf(result);
+  }
+
+  /** Conditional row styling: light tokens for the default variant, dark
+   *  white/5 treatment for the notch and draggable timer variants. */
+  protected rowClass(result: SearchResult): string {
+    const isDefault = this.variant() === 'default';
+    const layout = isDefault
+      ? 'px-3.5 py-2.5 gap-3 text-sm hover:bg-secondary/70'
+      : 'px-3 py-2 gap-2.5 text-xs hover:bg-white/5';
+    const active = this.activeIndex() === this.resultIndex(result)
+      ? isDefault
+        ? 'bg-secondary/80 ring-1 ring-inset ring-border/60'
+        : 'bg-white/10'
+      : '';
+    return `${layout} ${active} hover:translate-x-0.5`;
+  }
+
+  private cancelDebounce(): void {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+  }
+
+  private scrollActiveIntoView(index: number): void {
+    queueMicrotask(() => {
+      if (this.destroyed) return;
+      document.getElementById(this.optionId(index))?.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  private async searchJira(query: string, requestId: number): Promise<void> {
     try {
       // If it looks like a Jira key (e.g. SF-123), make sure it's uppercase
       const normalizedQuery = /^[a-zA-Z]+-\d+$/.test(query) ? query.toUpperCase() : query;
       const issues = await this.jiraService.searchIssues(normalizedQuery);
+      if (this.destroyed || requestId !== this.searchRequestId) return;
       this.jiraResults.set(issues);
+      this.jiraError.set('');
     } catch (err) {
+      if (this.destroyed || requestId !== this.searchRequestId) return;
       console.error('Jira search failed:', err);
       this.jiraResults.set([]);
+      this.jiraError.set(this.describeError(err));
     } finally {
-      this.searchingJira.set(false);
+      if (!this.destroyed && requestId === this.searchRequestId) {
+        this.searchingJira.set(false);
+      }
     }
+  }
+
+  private describeError(err: unknown): string {
+    if (err instanceof Error && err.message) return err.message;
+    if (typeof err === 'string' && err) return err;
+    return 'Could not reach Jira. Check your connection and try again.';
   }
 }

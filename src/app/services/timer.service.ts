@@ -19,6 +19,8 @@ export class TimerService {
   readonly timerState = this._timerState.asReadonly();
   readonly activeIssue = this._activeIssue.asReadonly();
   readonly loading = this._loading.asReadonly();
+  /** Live elapsed time of the running timer, updated once per second. */
+  readonly elapsedMs = this._elapsedMs.asReadonly();
 
   readonly isRunning = computed(() => this._timerState()?.isRunning ?? false);
   readonly issueId = computed(() => this._timerState()?.issueId ?? null);

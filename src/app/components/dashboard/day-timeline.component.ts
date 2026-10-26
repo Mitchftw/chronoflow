@@ -5,12 +5,12 @@ import {
   output,
   computed,
   signal,
-  OnDestroy,
-  OnInit,
+  effect,
 } from '@angular/core';
 import type { TimeEntry } from '../../models/time-entry';
 import type { Issue } from '../../models/issue';
 import { issueColor, withAlpha } from '../../utils/colors';
+import { formatDurationSeconds, parseTimeToSeconds } from '../../utils/time';
 
 const DEFAULT_START = 7 * 60; // 07:00
 const DEFAULT_END = 19 * 60; // 19:00
@@ -23,14 +23,11 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function toMinutes(value: string | null | undefined): number {
-  if (!value) return 0;
-  const [h, m] = value.split(':').map(Number);
-  if (Number.isNaN(h)) return 0;
-  return (h || 0) * 60 + (m || 0);
+  return parseTimeToSeconds(value) / 60;
 }
 
 function formatHm(minutes: number): string {
-  const clamped = clamp(Math.round(minutes), 0, 1440);
+  const clamped = clamp(Math.floor(minutes), 0, 1440);
   const h = Math.floor(clamped / 60);
   const m = clamped % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
@@ -85,8 +82,12 @@ interface TimelineGap {
           <span class="text-xs font-bold text-muted-foreground">Day timeline</span>
           @if (isToday()) {
             <span class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-              <span class="size-1.5 rounded-full bg-primary animate-pulse"></span>
-              Live
+              @if (activeEntryId()) {
+                <span class="size-1.5 rounded-full bg-primary animate-pulse"></span>
+                Live
+              } @else {
+                Today
+              }
             </span>
           }
         </div>
@@ -212,7 +213,7 @@ interface TimelineGap {
     </section>
   `,
 })
-export class DayTimelineComponent implements OnInit, OnDestroy {
+export class DayTimelineComponent {
   readonly entries = input.required<TimeEntry[]>();
   readonly issues = input<Issue[]>([]);
   readonly isToday = input(false);
@@ -228,21 +229,22 @@ export class DayTimelineComponent implements OnInit, OnDestroy {
 
   // ── Live clock ──
   private readonly nowMinutes = signal(this.readClock());
-  private timer: ReturnType<typeof setInterval> | null = null;
 
-  ngOnInit(): void {
-    if (this.isToday()) {
-      this.timer = setInterval(() => this.nowMinutes.set(this.readClock()), 30000);
-    }
-  }
-
-  ngOnDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
+  constructor() {
+    // The component is reused when the selected day changes, so the live
+    // clock cannot be tied to ngOnInit: switching from a past day to today
+    // must start the marker/interval as well.
+    effect((onCleanup) => {
+      this.nowMinutes.set(this.readClock());
+      if (!this.isToday()) return;
+      const timer = setInterval(() => this.nowMinutes.set(this.readClock()), 30000);
+      onCleanup(() => clearInterval(timer));
+    });
   }
 
   private readClock(): number {
     const now = new Date();
-    return now.getHours() * 60 + now.getMinutes();
+    return now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
   }
 
   // ── Derived data ──
@@ -398,11 +400,28 @@ export class DayTimelineComponent implements OnInit, OnDestroy {
     };
   }
 
-  readonly trackedLabel = computed(() =>
-    this.formatDuration(
-      this.intervals().reduce((sum, interval) => sum + (interval.end - interval.start), 0),
-    ),
-  );
+  /**
+   * Tracked time should be the union of the intervals, not the sum: two
+   * overlapping/duplicate entries must not inflate the day total.
+   */
+  readonly trackedLabel = computed(() => {
+    const ordered = [...this.intervals()].sort((a, b) => a.start - b.start || a.end - b.end);
+    let total = 0;
+    let cursor = -1;
+    let end = -1;
+    for (const interval of ordered) {
+      if (interval.end <= cursor) continue;
+      if (interval.start > end) {
+        if (end > cursor) total += end - cursor;
+        cursor = interval.start;
+        end = interval.end;
+      } else {
+        end = Math.max(end, interval.end);
+      }
+    }
+    if (end > cursor) total += end - cursor;
+    return this.formatDuration(total);
+  });
 
   readonly gapLabel = computed(() =>
     this.formatDuration(this.gaps().reduce((sum, gap) => sum + gap.minutes, 0)),
@@ -441,10 +460,6 @@ export class DayTimelineComponent implements OnInit, OnDestroy {
   protected readonly formatHm = formatHm;
 
   private formatDuration(minutes: number): string {
-    if (minutes <= 0) return '<1m';
-    const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
-    if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
-    return `${m}m`;
+    return formatDurationSeconds(Math.max(0, minutes) * 60);
   }
 }

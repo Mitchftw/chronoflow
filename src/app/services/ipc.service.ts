@@ -5,6 +5,7 @@ import type { TimeEntry } from '../models/time-entry';
 import type { JiraConnection } from '../models/jira-connection';
 import type { TimerState, IpcResponse, JiraIssue, DisplayInfo } from '../../types';
 import type { IssueCreate } from '../models/issue';
+import { toLocalDate } from '../utils/time';
 
 @Injectable({ providedIn: 'root' })
 export class IpcService {
@@ -119,7 +120,7 @@ export class IpcService {
       isRunning: false,
       startTime: null,
       createdAt: Date.now(),
-      date: new Date().toISOString().slice(0, 10),
+      date: toLocalDate(),
       color: data.color ?? null,
     };
     await this.store?.set('issues', [...issues, issue]);
@@ -264,15 +265,44 @@ export class IpcService {
     return res ?? null;
   }
 
-  async jiraGetWorklogsForDate(date: string): Promise<any[]> {
+  async jiraGetWorklogsForDate(date: string): Promise<{
+    success: boolean;
+    worklogs: any[];
+    complete: boolean;
+    error?: string;
+  }> {
     const defaultConn = await this.jiraGetDefaultConnection();
-    if (!defaultConn) return [];
-    
+    if (!defaultConn) {
+      return {
+        success: false,
+        worklogs: [],
+        complete: false,
+        error: 'No Jira connection configured',
+      };
+    }
+
     const res: any = await this.jira?.getWorklogsForDate({
       ...defaultConn,
-      date
+      date,
     });
-    return res?.success ? (res.worklogs ?? []) : [];
+    if (!res) {
+      return {
+        success: false,
+        worklogs: [],
+        complete: false,
+        error: 'Jira API not available',
+      };
+    }
+
+    const success = res.success === true;
+    return {
+      success,
+      worklogs: success && Array.isArray(res.worklogs) ? res.worklogs : [],
+      // Treat an older main process that did not report completeness as
+      // incomplete; it is safer to skip deletions than to remove local data.
+      complete: success && res.complete === true,
+      error: typeof res.error === 'string' ? res.error : undefined,
+    };
   }
 
   async jiraCreateConnection(data: any): Promise<JiraConnection> {

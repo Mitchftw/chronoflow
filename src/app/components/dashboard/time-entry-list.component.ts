@@ -2,6 +2,11 @@ import { Component, ChangeDetectionStrategy, input, output, computed } from '@an
 import type { TimeEntry } from '../../models/time-entry';
 import type { Issue } from '../../models/issue';
 import { issueColor as resolveIssueColor } from '../../utils/colors';
+import {
+  entryDurationMs,
+  formatDurationMs,
+  formatTimeHm,
+} from '../../utils/time';
 
 @Component({
   selector: 'app-time-entry-list',
@@ -62,9 +67,9 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
                 <span class="truncate">{{ getIssueTitle(entry.issueId) }}</span>
               </span>
               <span class="col-span-full flex items-baseline gap-3 font-mono text-xs text-muted-foreground @2xl:contents @2xl:text-sm">
-                <span>{{ entry.startTime }}<span class="@2xl:hidden"> – {{ entry.endTime ?? 'now' }}</span></span>
-                <span class="hidden @2xl:inline">{{ entry.endTime ?? '-' }}</span>
-                <span class="font-bold text-primary">{{ formatDuration(entry) }}</span>
+                <span>{{ formatTime(entry.startTime) }}<span class="@2xl:hidden"> – {{ entry.endTime ? formatTime(entry.endTime) : 'now' }}</span></span>
+                <span class="hidden @2xl:inline">{{ entry.endTime ? formatTime(entry.endTime) : 'now' }}</span>
+                <span class="font-bold text-primary" [title]="isActiveEntry(entry) ? 'Live duration' : 'Duration'">{{ formatDuration(entry) }}</span>
               </span>
               @if (entry.note) {
                 <span class="col-span-full truncate text-xs text-muted-foreground @4xl:col-span-1 @4xl:text-sm" [title]="entry.note">{{ entry.note }}</span>
@@ -76,7 +81,7 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
                          play triangle, or a pulsing dot on the entry that is
                          currently being tracked. -->
                     <button
-                      class="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/50 text-muted-foreground transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+                      class="flex size-8 shrink-0 items-center justify-center rounded-xl border border-border/50 text-muted-foreground transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
                       [class]="isActiveEntry(entry)
                         ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25'
                         : 'hover:border-primary hover:text-primary'"
@@ -93,7 +98,7 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
                       }
                     </button>
                     <button
-                      class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-primary/20 hover:text-primary transition-all duration-200 cursor-pointer"
+                      class="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground hover:bg-primary/20 hover:text-primary transition-all duration-200 cursor-pointer"
                       (click)="editEntry.emit(entry)"
                       title="Edit entry"
                       aria-label="Edit entry"
@@ -103,7 +108,7 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
                       </svg>
                     </button>
                     <button
-                      class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-primary/20 hover:text-primary transition-all duration-200 cursor-pointer"
+                      class="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground hover:bg-primary/20 hover:text-primary transition-all duration-200 cursor-pointer"
                       (click)="splitEntry.emit(entry)"
                       title="Split entry (remove a block or cut at a point)"
                       aria-label="Split entry"
@@ -115,9 +120,10 @@ import { issueColor as resolveIssueColor } from '../../utils/colors';
                       </svg>
                     </button>
                     <button
-                      class="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-red-500/20 hover:text-red-500 transition-all duration-200 cursor-pointer"
+                      class="inline-flex size-8 items-center justify-center rounded-xl text-muted-foreground hover:bg-red-500/20 hover:text-red-500 transition-all duration-200 cursor-pointer disabled:pointer-events-none disabled:opacity-35"
                       (click)="deleteEntry.emit(entry.id)"
-                      title="Delete entry"
+                      [disabled]="isActiveEntry(entry)"
+                      [title]="isActiveEntry(entry) ? 'Stop the timer before deleting this entry' : 'Delete entry'"
                       aria-label="Delete entry"
                     >
                       <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -138,6 +144,8 @@ export class TimeEntryListComponent {
   dateLabel = input<string>('Today');
   /** Id of the entry the timer is currently tracking (from the timer state). */
   activeEntryId = input<string | null>(null);
+  /** Live elapsed milliseconds supplied by the timer for the active entry. */
+  activeElapsedMs = input(0);
 
   deleteEntry = output<string>();
   editEntry = output<TimeEntry>();
@@ -184,14 +192,18 @@ export class TimeEntryListComponent {
     return !entry.endTime && entry.id === this.activeEntryId();
   }
 
+  /** Stored wall-clock time -> HH:mm (seconds are intentionally hidden). */
+  readonly formatTime = formatTimeHm;
+
   formatDuration(entry: TimeEntry): string {
-    if (!entry.endTime) return '-';
-    const [startH, startM] = entry.startTime.split(':').map(Number);
-    const [endH, endM] = entry.endTime.split(':').map(Number);
-    const diffMin = endH * 60 + endM - (startH * 60 + startM);
-    if (diffMin <= 0) return '< 1m';
-    const h = Math.floor(diffMin / 60);
-    const m = diffMin % 60;
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    if (this.isActiveEntry(entry)) {
+      const elapsed = this.activeElapsedMs();
+      // Fall back to the wall-clock duration until the parent's first tick.
+      return formatDurationMs(
+        elapsed > 0 ? elapsed : entryDurationMs(entry),
+      );
+    }
+    // Shared util handles overnight entries and sub-minute values.
+    return formatDurationMs(entryDurationMs(entry));
   }
 }

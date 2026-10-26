@@ -107,7 +107,12 @@ export class TimerWindowComponent implements OnInit, OnDestroy {
   }
 
   async handleClose(): Promise<void> {
-    await this.timer.stop();
+    // While running the overlay's X reads "Stop timer and close overlay" (see
+    // draggable timer) and matches the notch copy. When nothing is running
+    // (the stopped search state) it is just a close, so skip the stop IPC.
+    if (this.timer.isRunning()) {
+      await this.timer.stop();
+    }
     await this.ipc.hideTimerWindow();
   }
 }

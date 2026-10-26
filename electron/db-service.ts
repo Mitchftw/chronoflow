@@ -268,6 +268,22 @@ export async function updateIssue(
 
 export async function deleteIssue(id: string): Promise<void> {
   const db = getDatabase();
+
+  // Queue every Jira worklog owned by this issue's time entries before the
+  // FK cascade removes the rows. Otherwise deleting an issue would leave
+  // orphaned worklogs in Jira that the next sync never hears about.
+  const entries = (await db.all(
+    "SELECT * FROM time_entries WHERE issue_id = ?",
+    id,
+  )) as any[];
+  const queuedWorklogIds = new Set<string>();
+  for (const entry of entries) {
+    const worklogId = entry?.jira_worklog_id;
+    if (!worklogId || queuedWorklogIds.has(worklogId)) continue;
+    await queueWorklogDeletion(db, entry);
+    queuedWorklogIds.add(worklogId);
+  }
+
   await db.run("DELETE FROM issues WHERE id = ?", id);
 }
 
@@ -484,22 +500,27 @@ export async function splitTimeEntry(
 
   const newEntryId = crypto.randomUUID();
 
+  // The shortened original keeps the existing Jira worklog (if any) and is
+  // marked dirty so the next sync updates that worklog to the shorter
+  // duration. The new second part must NOT copy the worklog id — it would
+  // create two local entries pointing at the same Jira worklog and the next
+  // sync would corrupt/duplicate it. It becomes a new worklog instead.
   await db.run(
-    "UPDATE time_entries SET end_time = ? WHERE id = ?",
+    "UPDATE time_entries SET end_time = ?, is_dirty = 1 WHERE id = ?",
     normalizedSplit,
     originalEntryId,
   );
 
   await db.run(
-    `INSERT INTO time_entries (id, issue_id, start_time, end_time, date, note, jira_worklog_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO time_entries (id, issue_id, start_time, end_time, date, note, jira_worklog_id, is_dirty)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
     newEntryId,
     newIssueId || original.issue_id,
     normalizedSplit,
     original.end_time,
     original.date,
     newNote ?? original.note,
-    original.jira_worklog_id,
+    null,
   );
 }
 
@@ -657,8 +678,19 @@ export async function mergeTimeEntries(
     newNote = rows.map((r) => r.note).filter(Boolean).join("; ");
   }
 
+  // Every source worklog is replaced by the merged entry's new worklog.
+  // Queue the old ids for deletion and clear the retained row's worklog id so
+  // the next sync adds exactly one worklog for the merged duration.
+  const queuedWorklogIds = new Set<string>();
+  for (const row of rows) {
+    const worklogId = row?.jira_worklog_id;
+    if (!worklogId || queuedWorklogIds.has(worklogId)) continue;
+    await queueWorklogDeletion(db, row);
+    queuedWorklogIds.add(worklogId);
+  }
+
   await db.run(
-    "UPDATE time_entries SET end_time = ?, note = ? WHERE id = ?",
+    "UPDATE time_entries SET end_time = ?, note = ?, jira_worklog_id = NULL, is_dirty = 1 WHERE id = ?",
     newEndTime,
     newNote,
     firstEntry.id,

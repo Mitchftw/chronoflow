@@ -34,7 +34,7 @@
     --secondary: 228 24% 95%;
     --secondary-foreground: 228 28% 16%;
     --muted: 228 18% 92%;
-    --muted-foreground: 228 12% 45%;
+    --muted-foreground: 228 14% 40%;
     --accent: 243 75% 59%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 55%;
@@ -55,7 +55,7 @@
     --secondary: 230 17% 18%;
     --secondary-foreground: 220 22% 96%;
     --muted: 230 16% 21%;
-    --muted-foreground: 225 14% 72%;
+    --muted-foreground: 225 14% 74%;
     --accent: 243 82% 68%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 66% 55%;
@@ -91,6 +91,9 @@
     outline: 2px solid hsl(var(--ring) / 0.65);
     outline-offset: 2px;
     border-radius: 0.5rem;
+  }
+  button:disabled {
+    cursor: not-allowed;
   }
 }
 
@@ -137,8 +140,13 @@ html.timer-window-active app-timer-window {
 @layer components {
   /* Shared surface for cards and panels */
   .app-card {
-    @apply rounded-2xl border border-border/50 bg-card/70 shadow-sm;
-    box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 8px 24px -18px hsl(var(--shadow-color) / 0.35);
+    @apply rounded-2xl border border-border/65 bg-card/70 shadow-sm;
+    box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 10px 28px -20px hsl(var(--shadow-color) / 0.45);
+  }
+  /* Keep dark surfaces airy; light mode gets the extra definition. */
+  .dark .app-card {
+    border-color: hsl(var(--border) / 0.5);
+    box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 8px 24px -18px hsl(var(--shadow-color) / 0.35);
   }
   .app-card-interactive {
     @apply transition-all duration-300 hover:border-primary/30 hover:shadow-md;
@@ -146,7 +154,7 @@ html.timer-window-active app-timer-window {
 
   /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap;
   }
   .btn-primary {
     @apply bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:bg-primary/90;
@@ -172,5 +180,16 @@ html.timer-window-active app-timer-window {
   /* Small pill/badge */
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-[10px] font-bold;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

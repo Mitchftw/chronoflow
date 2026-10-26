@@ -19,13 +19,11 @@ export interface NavItem {
   template: `
     <!-- Nav items -->
     <div class="flex-1 py-5 px-3 space-y-1.5 overflow-y-auto overflow-x-hidden">
-      <div
-        class="mb-2 px-3 text-[10px] font-bold text-muted-foreground transition-opacity duration-200"
-        [class.opacity-0]="collapsed()"
-        [class.opacity-100]="!collapsed()"
-      >
-        Menu
-      </div>
+      @if (!collapsed()) {
+        <div class="mb-2 px-3 text-[10px] font-bold text-muted-foreground">
+          Menu
+        </div>
+      }
 
       @for (item of navItems(); track item.route) {
         <a

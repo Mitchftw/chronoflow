@@ -201,6 +201,7 @@ interface VacationDay {
         <div class="relative z-20">
           <app-search-bar
             [placeholder]="'Search verlof ticket...'"
+            [showCreate]="false"
             [(query)]="issueQuery"
             (resultSelected)="onIssueSelected($event)"
           />
@@ -555,6 +556,20 @@ export class VacationComponent {
   protected readonly usingSavedDefault = signal(false);
   protected readonly defaultKeyMissing = signal(false);
 
+  /**
+   * Session-level flag set when the user explicitly clears the picker.
+   * Without it the default-issue effect immediately resolves the saved
+   * default again, making Clear look broken. The saved default itself stays
+   * in settings for the next session. Reset when the user selects an issue or
+   * when `defaultVacationIssueKey` changes.
+   */
+  private readonly suppressDefaultIssue = signal(false);
+  private lastDefaultIssueKey: string | null = null;
+
+  /** Last `defaultVacationHours` value applied to the form (avoids resetting
+   *  a user-edited field when an unrelated setting changes). */
+  private lastAppliedDefaultHours: number | null = null;
+
   /** two-way bound query feeding the search bar */
   protected readonly issueQuery = signal('');
 
@@ -586,8 +601,20 @@ export class VacationComponent {
     // away while a push is in flight).
     this.destroyRef.onDestroy(() => (this.alive = false));
 
-    // Sync hoursPerDay from settings on initial load.
-    this.hoursPerDay.set(this.settings().defaultVacationHours || 8);
+    // Keep the default hours in sync with settings. SettingsService.load()
+    // is async, so reading it once in the constructor can miss the persisted
+    // value. Only react to actual changes of `defaultVacationHours` so a
+    // user-edited hours field is not reset by unrelated settings updates.
+    effect(
+      () => {
+        const configured = this.settings().defaultVacationHours;
+        const next = configured > 0 ? Math.min(24, configured) : 8;
+        if (this.lastAppliedDefaultHours === next) return;
+        this.lastAppliedDefaultHours = next;
+        this.hoursPerDay.set(next);
+      },
+      { allowSignalWrites: true },
+    );
 
     // Recompute the preview rows whenever the form state changes.
     effect(
@@ -609,7 +636,18 @@ export class VacationComponent {
     effect(
       () => {
         const settingsKey = this.settings().defaultVacationIssueKey;
-        if (!settingsKey || this.selectedIssue()) return;
+
+        // A new saved default is an explicit signal to resolve again, even if
+        // the user had cleared the previous one in this session.
+        if (settingsKey !== this.lastDefaultIssueKey) {
+          this.lastDefaultIssueKey = settingsKey;
+          this.suppressDefaultIssue.set(false);
+          this.defaultKeyMissing.set(false);
+        }
+
+        if (!settingsKey || this.selectedIssue() || this.suppressDefaultIssue()) {
+          return;
+        }
         const conns = this.jiraService.connections();
         if (conns.length === 0) return;
 
@@ -648,12 +686,13 @@ export class VacationComponent {
   protected pushProgressTotal = signal(0);
 
   protected readonly pushableCount = computed(() => {
-    const rows = this.dayRows().filter((r) => !r.skipped);
-    return rows.filter((r) => r.status !== 'success').length;
+    return this.dayRows().filter((r) => this.isPushable(r)).length;
   });
 
   protected readonly failedCount = computed(() => {
-    return this.dayRows().filter((r) => r.status === 'error').length;
+    return this.dayRows().filter(
+      (r) => r.status === 'error' && this.isPushable(r),
+    ).length;
   });
 
   protected readonly canPush = computed(
@@ -675,6 +714,20 @@ export class VacationComponent {
   protected clampHours(n: number | null | undefined): number {
     if (n == null || !Number.isFinite(n) || n < 0) return 0;
     return Math.min(24, Math.round(n * 2) / 2);
+  }
+
+  /** Jira rejects zero-second worklogs, so such rows are never pushed. */
+  private worklogSeconds(row: VacationDay): number {
+    return Math.round(row.hours * 3600);
+  }
+
+  /** Rows the push loop will actually process. */
+  private isPushable(row: VacationDay): boolean {
+    return (
+      !row.skipped &&
+      row.status !== 'success' &&
+      this.worklogSeconds(row) > 0
+    );
   }
 
   /**
@@ -700,6 +753,8 @@ export class VacationComponent {
   protected onIssueSelected(result: SearchResult): void {
     if (result.type === 'jira') {
       this.selectedIssue.set({ key: result.key, summary: result.summary });
+      // A manual pick is an explicit override of the cleared state.
+      this.suppressDefaultIssue.set(false);
       // Persist as the new remembered default for next time.
       this.settingsService.update({ defaultVacationIssueKey: result.key });
       // Clear any "default missing" warning if it was showing.
@@ -707,10 +762,17 @@ export class VacationComponent {
       // The "Saved default" badge was for an auto-resolved ticket; a manual
       // pick is by definition the user's choice for this session.
       this.usingSavedDefault.set(false);
+    } else {
+      // Only Jira issues are valid vacation targets (the picker hides the
+      // create/local actions, but be defensive about stale results).
+      this.issueQuery.set('');
     }
   }
 
   protected clearIssue(): void {
+    // Keep the saved default in settings, but suppress auto-resolution for
+    // the rest of this session so the cleared picker stays empty.
+    this.suppressDefaultIssue.set(true);
     this.selectedIssue.set(null);
     this.usingSavedDefault.set(false);
     this.issueQuery.set('');
@@ -759,7 +821,11 @@ export class VacationComponent {
 
     // Use the snapshot, not the live dayRows, so the progress denominator
     // stays stable for the entire push even if other paths mutate dayRows.
-    this.pushProgressTotal.set(snapshot.filter((r) => !r.skipped).length);
+    // Match the loop's skip conditions exactly (skipped, already successful,
+    // or zero-hour rows) so progress never counts work that won't be sent.
+    this.pushProgressTotal.set(
+      snapshot.filter((r) => this.isPushable(r)).length,
+    );
 
     let success = 0;
     let failed = 0;
@@ -769,7 +835,7 @@ export class VacationComponent {
         if (!this.alive || runId !== this.pushRunId) break; // aborted
 
         const row = snapshot[i];
-        if (!row || row.skipped || row.status === 'success') continue;
+        if (!row || !this.isPushable(row)) continue;
 
         this.setRowStatus(row.dateISO, 'syncing');
 
@@ -778,7 +844,7 @@ export class VacationComponent {
         try {
           res = await this.ipc.jiraSyncWorklog({
             issueKey: issue.key,
-            timeSpentSeconds: Math.round(row.hours * 3600),
+            timeSpentSeconds: this.worklogSeconds(row),
             // Jira Cloud rejects the bare `Z` (UTC) form that `.toISOString()`
             // returns. It requires explicit local timezone offset; the shared
             // helper produces that.
@@ -890,19 +956,34 @@ export class VacationComponent {
 
   private async resolveDefaultIssue(key: string): Promise<void> {
     // Avoid stale results: if the user already picked something, bail.
-    if (this.selectedIssue()) return;
+    if (this.selectedIssue() || this.suppressDefaultIssue()) return;
     try {
       const issues = await this.jiraService.searchIssues(key);
+      // The default may have been changed/cleared while the request was in
+      // flight. Never let a stale response repopulate the picker or show a
+      // warning over a ticket the user has chosen manually.
+      if (
+        this.selectedIssue() ||
+        this.settings().defaultVacationIssueKey !== key ||
+        this.suppressDefaultIssue()
+      ) {
+        return;
+      }
       const match = issues.find((i) => i.key.toUpperCase() === key.toUpperCase());
-      if (match && !this.selectedIssue()) {
+      if (match) {
         this.selectedIssue.set({ key: match.key, summary: match.summary });
         this.usingSavedDefault.set(true);
         this.defaultKeyMissing.set(false);
-      } else if (!match) {
+      } else {
         this.defaultKeyMissing.set(true);
       }
     } catch {
-      this.defaultKeyMissing.set(true);
+      if (
+        !this.selectedIssue() &&
+        this.settings().defaultVacationIssueKey === key
+      ) {
+        this.defaultKeyMissing.set(true);
+      }
     }
   }
 

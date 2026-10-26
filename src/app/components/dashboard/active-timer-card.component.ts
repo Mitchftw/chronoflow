@@ -8,7 +8,7 @@ import type { Issue } from '../../models/issue';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SearchBarComponent],
   host: {
-    class: 'rounded-2xl border border-border/40 bg-card/65 p-6 md:p-8 min-h-[140px] flex flex-col justify-center shadow-sm relative z-10 select-none',
+    class: 'rounded-2xl border border-border/40 bg-card/65 p-6 md:p-8 min-h-[140px] flex flex-col justify-center shadow-sm relative z-10',
   },
   template: `
     @if (isRunning()) {
@@ -32,7 +32,11 @@ import type { Issue } from '../../models/issue';
             </p>
           }
 
-          <p class="mt-3.5 font-mono text-4xl font-bold tracking-tight tabular-nums text-primary transition-all duration-300">
+          <p
+            class="mt-3.5 font-mono text-4xl font-bold tracking-tight tabular-nums text-primary transition-all duration-300"
+            aria-live="polite"
+            [attr.aria-label]="'Elapsed time ' + formattedTime()"
+          >
             {{ formattedTime() }}
           </p>
         </div>
@@ -67,6 +71,7 @@ import type { Issue } from '../../models/issue';
         <div class="w-full max-w-xl">
           <app-search-bar
             [localIssues]="localIssues()"
+            [createActionLabel]="'Create & start local task'"
             [placeholder]="'Search Jira/local issues, or type to start a new task...'"
             (resultSelected)="resultSelected.emit($event)"
           />

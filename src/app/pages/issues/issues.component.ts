@@ -4,8 +4,6 @@ import {
   inject,
   signal,
   computed,
-  linkedSignal,
-  effect,
 } from '@angular/core';
 import { DatabaseService } from '../../services/database.service';
 import { TimerService } from '../../services/timer.service';
@@ -14,6 +12,7 @@ import { SearchBarComponent, type SearchResult } from '../../components/common/s
 import { IssueCardComponent } from '../../components/common/issue-card.component';
 import { IssueFormDialogComponent } from '../../components/common/issue-form-dialog.component';
 import { PageHeaderComponent } from '../../components/common/page-header.component';
+import { DialogComponent } from '../../components/common/dialog.component';
 import type { Issue } from '../../models/issue';
 import type { Project } from '../../models/project';
 import { issueColor as resolveIssueColor } from '../../utils/colors';
@@ -28,11 +27,12 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
     IssueCardComponent,
     IssueFormDialogComponent,
     PageHeaderComponent,
+    DialogComponent,
   ],
   host: { class: 'block' },
   template: `
     <app-page-header title="Issues" subtitle="Track your work items and time">
-      <button class="btn btn-primary" (click)="showFormDialog.set(true)">
+      <button class="btn btn-primary" (click)="openCreateDialog()">
         <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
         </svg>
@@ -48,6 +48,30 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
         (resultSelected)="onResultSelected($event)"
       />
     </div>
+
+    <!-- Action error -->
+    @if (actionError()) {
+      <div
+        class="mb-5 flex items-start justify-between gap-4 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-xs font-semibold text-destructive shadow-sm"
+        role="alert"
+      >
+        <span class="flex items-start gap-2">
+          <svg class="mt-0.5 size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <span>{{ actionError() }}</span>
+        </span>
+        <button
+          class="shrink-0 rounded-lg p-1 text-destructive/80 transition-colors hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+          (click)="actionError.set(null)"
+          aria-label="Dismiss error"
+        >
+          <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    }
 
     <!-- Filters -->
     <div class="mb-6 flex flex-wrap items-center gap-3 select-none">
@@ -119,7 +143,7 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
         @if (!searchQuery() && projectFilter() === '' && statusFilter() === 'all') {
           <button
             class="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition-all cursor-pointer"
-            (click)="showFormDialog.set(true)"
+            (click)="openCreateDialog()"
           >
             Create first issue
           </button>
@@ -137,7 +161,8 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
             [projectColor]="getProjectColor(issue.projectId)"
             [issueColor]="getIssueColor(issue)"
             (startTimer)="onStartTimer($event)"
-            (delete)="onDeleteIssue($event)"
+            (edit)="onEditIssue($event)"
+            (delete)="requestDeleteIssue($event)"
             (openInJira)="onOpenInJira($event)"
           />
         }
@@ -152,6 +177,36 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
       (saved)="onIssueSaved($event)"
       (dismissed)="onFormDismissed()"
     />
+
+    <!-- Delete confirmation -->
+    <app-dialog
+      [(isOpen)]="showDeleteDialog"
+      title="Delete Issue"
+      [confirmLabel]="deletingIssue() ? 'Deleting…' : 'Delete'"
+      [confirmDisabled]="deletingIssue() || !!deleteBlockedMessage()"
+      (confirm)="confirmDeleteIssue()"
+      (close)="cancelDeleteIssue()"
+    >
+      @if (pendingDeleteIssue(); as issue) {
+        <div class="space-y-3">
+          <p class="text-sm text-muted-foreground">
+            Delete <strong class="font-bold text-foreground">{{ issue.title }}</strong>? This action cannot be undone.
+          </p>
+
+          @if (deleteBlockedMessage()) {
+            <div class="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-xs font-medium text-destructive" role="alert">
+              {{ deleteBlockedMessage() }}
+            </div>
+          }
+
+          @if (deleteError()) {
+            <div class="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-xs font-medium text-destructive" role="alert">
+              {{ deleteError() }}
+            </div>
+          }
+        </div>
+      }
+    </app-dialog>
   `,
 })
 export class IssuesComponent {
@@ -171,6 +226,24 @@ export class IssuesComponent {
   /** Dialog visibility */
   showFormDialog = signal(false);
   editingIssue = signal<Issue | null>(null);
+
+  /** Action feedback */
+  actionError = signal<string | null>(null);
+
+  /** Delete confirmation */
+  showDeleteDialog = signal(false);
+  pendingDeleteIssue = signal<Issue | null>(null);
+  deleteError = signal<string | null>(null);
+  deletingIssue = signal(false);
+
+  /** The issue currently being timed cannot be deleted. */
+  readonly deleteBlockedMessage = computed(() => {
+    const issue = this.pendingDeleteIssue();
+    if (!issue) return null;
+    return this.timerService.isRunning() && this.timerService.issueId() === issue.id
+      ? 'Stop the running timer before deleting this issue.'
+      : null;
+  });
 
   /** Status filter options */
   readonly statusOptions: Array<{ value: StatusFilter; label: string }> = [
@@ -207,8 +280,8 @@ export class IssuesComponent {
       );
     }
 
-    // Sort: newest first
-    return list.sort((a, b) => b.createdAt - a.createdAt);
+    // Sort a copy: computed signals must never mutate their source arrays.
+    return [...list].sort((a, b) => b.createdAt - a.createdAt);
   });
 
   // ── Constructor ──
@@ -237,71 +310,192 @@ export class IssuesComponent {
 
   // ── Search ──
 
-  onResultSelected(result: SearchResult): void {
-    if (result.type === 'jira' && 'key' in result.issue) {
-      // Create a local issue from Jira search result
-      const jiraIssue = result.issue as { key: string; summary: string; description?: string; estimateMinutes?: number };
-      const newIssue: Issue = {
-        id: crypto.randomUUID(),
-        title: jiraIssue.summary,
-        description: '',
-        projectId: '',
-        status: 'todo',
-        jiraIssueKey: jiraIssue.key,
-        jiraConnectionId: null,
-        estimate: jiraIssue.estimateMinutes ?? 0,
-        timeSpent: 0,
-        isRunning: false,
-        startTime: null,
-        createdAt: Date.now(),
-        date: new Date().toISOString().slice(0, 10),
-      };
-      this.db.createIssue(newIssue);
-      this.issues.update((list) => [...list, newIssue]);
-    } else if ('id' in result.issue) {
-      // Local issue - start timer on it
-      this.onStartTimer((result.issue as Issue).id);
+  async onResultSelected(result: SearchResult): Promise<void> {
+    this.actionError.set(null);
+
+    try {
+      if (result.type === 'jira') {
+        // Reuse an existing local issue when this Jira key is already tracked.
+        const existing = this.issues().find((i) => i.jiraIssueKey === result.key);
+        if (existing) {
+          this.searchQuery.set('');
+          return;
+        }
+
+        // Let the database generate the canonical issue (real id/createdAt)
+        // instead of pushing a hand-built object that does not exist in the DB.
+        const created = await this.db.createIssue({
+          title: result.summary,
+          jiraIssueKey: result.key,
+          estimate: result.issue.estimateMinutes ?? 0,
+        });
+        this.syncIssueList();
+        this.upsertIssue(created);
+      } else if (result.type === 'create') {
+        const created = await this.db.createIssue({ title: result.issue.title });
+        this.syncIssueList();
+        this.upsertIssue(created);
+      } else {
+        // Local issue — start tracking it.
+        await this.onStartTimer(result.issue.id);
+      }
+
+      this.searchQuery.set('');
+    } catch (err) {
+      console.error('Failed to handle search result', err);
+      this.actionError.set(this.toErrorMessage(err, 'Could not save the issue.'));
     }
   }
 
   // ── Actions ──
 
   async onStartTimer(issueId: string): Promise<void> {
-    await this.timerService.start(issueId);
-    this.issues.update((list) =>
-      list.map((i) =>
-        i.id === issueId ? { ...i, isRunning: true, startTime: Date.now(), timeSpent: 0 } : { ...i, isRunning: false },
-      ),
-    );
-  }
+    this.actionError.set(null);
 
-  async onDeleteIssue(issueId: string): Promise<void> {
-    await this.db.deleteIssue(issueId);
-    this.issues.update((list) => list.filter((i) => i.id !== issueId));
-  }
-
-  onOpenInJira(issueId: string): void {
-    const issue = this.issues().find((i) => i.id === issueId);
-    if (issue?.jiraIssueKey) {
-      // Try to find the active connection's domain
-      const conn = this.jiraService.activeConnection();
-      if (conn) {
-        const url = `https://${conn.domain}/browse/${issue.jiraIssueKey}`;
-        window.open(url, '_blank');
+    try {
+      // Clicking the already-running issue is a no-op.
+      if (this.timerService.isRunning() && this.timerService.issueId() === issueId) {
+        return;
       }
+
+      const started = await this.timerService.start(issueId);
+      if (!started) {
+        this.actionError.set(
+          this.timerService.isRunning()
+            ? 'A timer is already running. Stop it first.'
+            : 'Could not start the timer. Please try again.',
+        );
+        return;
+      }
+
+      // The main process updates the running flags/start time in SQLite.
+      // Reload the canonical list so exactly one issue is marked running and
+      // timeSpent is never overwritten by an optimistic local guess.
+      await this.db.reloadIssues();
+      this.syncIssueList();
+    } catch (err) {
+      console.error('Failed to start timer', err);
+      this.actionError.set(this.toErrorMessage(err, 'Could not start the timer.'));
+    }
+  }
+
+  openCreateDialog(): void {
+    this.actionError.set(null);
+    this.editingIssue.set(null);
+    this.showFormDialog.set(true);
+  }
+
+  onEditIssue(issueId: string): void {
+    const issue = this.issues().find((i) => i.id === issueId);
+    if (!issue) return;
+    this.actionError.set(null);
+    this.editingIssue.set(issue);
+    this.showFormDialog.set(true);
+  }
+
+  requestDeleteIssue(issueId: string): void {
+    const issue = this.issues().find((i) => i.id === issueId);
+    if (!issue) return;
+    this.actionError.set(null);
+    this.deleteError.set(null);
+    this.pendingDeleteIssue.set(issue);
+    this.showDeleteDialog.set(true);
+  }
+
+  /** Backwards-compatible entry point: opens the delete confirmation. */
+  onDeleteIssue(issueId: string): void {
+    this.requestDeleteIssue(issueId);
+  }
+
+  async confirmDeleteIssue(): Promise<void> {
+    const issue = this.pendingDeleteIssue();
+    if (!issue || this.deletingIssue()) return;
+
+    const blocked = this.deleteBlockedMessage();
+    if (blocked) {
+      this.deleteError.set(blocked);
+      return;
+    }
+
+    this.deletingIssue.set(true);
+    this.deleteError.set(null);
+
+    try {
+      await this.db.deleteIssue(issue.id);
+      this.syncIssueList();
+      this.issues.update((list) => list.filter((i) => i.id !== issue.id));
+      this.showDeleteDialog.set(false);
+      this.pendingDeleteIssue.set(null);
+    } catch (err) {
+      console.error('Failed to delete issue', err);
+      this.deleteError.set(this.toErrorMessage(err, 'Could not delete the issue.'));
+    } finally {
+      this.deletingIssue.set(false);
+    }
+  }
+
+  cancelDeleteIssue(): void {
+    this.pendingDeleteIssue.set(null);
+    this.deleteError.set(null);
+    this.showDeleteDialog.set(false);
+  }
+
+  async onOpenInJira(issueId: string): Promise<void> {
+    const issue = this.issues().find((i) => i.id === issueId);
+    if (!issue?.jiraIssueKey) return;
+
+    const conn = this.jiraService.activeConnection();
+    if (!conn) {
+      this.actionError.set('No Jira connection configured.');
+      return;
+    }
+
+    this.actionError.set(null);
+
+    try {
+      if ((conn.authType ?? 'api-key') === 'oauth') {
+        // OAuth connections store the cloud id (not a hostname) in `domain`,
+        // so the browsable site url has to be resolved from accessible
+        // resources — same behaviour as the backlog page.
+        const res = await this.jiraService.getAccessibleResources(conn.accessToken ?? '');
+        const resources: any[] = res.resources ?? [];
+        const cloudId = conn.cloudId ?? '';
+        const domain = conn.domain ?? '';
+        const site = resources.find((r: any) => {
+          if (cloudId && r.id === cloudId) return true;
+          if (domain && (r.id === domain || r.url === domain)) return true;
+          if (domain && typeof r.url === 'string' && r.url.includes(domain)) return true;
+          return false;
+        });
+
+        if (!site?.url) {
+          this.actionError.set(
+            res.error || 'Could not resolve the Jira site for this connection.',
+          );
+          return;
+        }
+
+        window.open(`${String(site.url).replace(/\/$/, '')}/browse/${issue.jiraIssueKey}`, '_blank');
+        return;
+      }
+
+      const domain = String(conn.domain ?? '')
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '');
+      window.open(`https://${domain}/browse/${issue.jiraIssueKey}`, '_blank');
+    } catch (err) {
+      console.error('Failed to open issue in Jira', err);
+      this.actionError.set(this.toErrorMessage(err, 'Could not open the issue in Jira.'));
     }
   }
 
   onIssueSaved(issue: Issue): void {
-    this.issues.update((list) => {
-      const idx = list.findIndex((i) => i.id === issue.id);
-      if (idx >= 0) {
-        const updated = [...list];
-        updated[idx] = issue;
-        return updated;
-      }
-      return [...list, issue];
-    });
+    this.actionError.set(null);
+    this.syncIssueList();
+    this.upsertIssue(issue);
+    // The dialog closes on success; forget the previous edit so the next
+    // edit (even of the same issue) repopulates every field.
+    this.editingIssue.set(null);
   }
 
   onFormDismissed(): void {
@@ -322,5 +516,27 @@ export class IssuesComponent {
 
   getIssueColor(issue: Issue): string {
     return resolveIssueColor(issue);
+  }
+
+  /** Mirror the canonical list held by DatabaseService. */
+  private syncIssueList(): void {
+    this.issues.set(this.db.issues());
+  }
+
+  /** Ensure a canonical issue returned by DatabaseService is present locally. */
+  private upsertIssue(issue: Issue): void {
+    this.issues.update((list) => {
+      const idx = list.findIndex((i) => i.id === issue.id);
+      if (idx === -1) return [...list, issue];
+      const next = [...list];
+      next[idx] = issue;
+      return next;
+    });
+  }
+
+  private toErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof Error && err.message.trim()) return err.message;
+    if (typeof err === 'string' && err.trim()) return err;
+    return fallback;
   }
 }

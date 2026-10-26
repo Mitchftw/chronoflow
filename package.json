@@ -15,7 +15,9 @@
     "package": "electron-builder build --win",
     "release": "node release.js",
     "test": "vitest",
+    "test:unit": "vitest run src",
     "test:e2e": "playwright test",
+    "screenshots": "node scripts/capture-screenshots.mjs after",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [],

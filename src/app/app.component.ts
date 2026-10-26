@@ -1,4 +1,13 @@
-import { Component, ChangeDetectionStrategy, inject, signal, effect, computed, OnDestroy } from '@angular/core';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  inject,
+  signal,
+  effect,
+  computed,
+  HostListener,
+  OnDestroy,
+} from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { TitleBarComponent } from './components/title-bar/title-bar.component';
 import { SideNavComponent } from './components/side-nav/side-nav.component';
@@ -12,6 +21,7 @@ import { IdlePromptComponent } from './components/common/idle-prompt.component';
 import { DialogComponent } from './components/common/dialog.component';
 import { SearchBarComponent, SearchResult } from './components/common/search-bar.component';
 import { UpdateToastComponent } from './components/common/update-toast.component';
+import { pad2, toLocalDate } from './utils/time';
 
 @Component({
   selector: 'app-root',
@@ -38,10 +48,10 @@ import { UpdateToastComponent } from './components/common/update-toast.component
       <div class="flex flex-1 overflow-hidden">
         <app-side-nav
           [collapsed]="sideNavCollapsed()"
-          (toggleCollapse)="sideNavCollapsed.set(!sideNavCollapsed())"
+          (toggleCollapse)="toggleSideNav()"
         />
 
-        <main class="flex-1 overflow-y-auto">
+        <main class="flex-1 overflow-y-auto select-text">
           <div class="mx-auto w-full max-w-[1560px] px-6 pt-8 pb-12">
             <router-outlet />
           </div>
@@ -90,7 +100,7 @@ import { UpdateToastComponent } from './components/common/update-toast.component
     }
   `,
 })
-export class AppComponent {
+export class AppComponent implements OnDestroy {
   private settings = inject(SettingsService);
   private ipc = inject(IpcService);
   private idleDetection = inject(IdleDetectionService);
@@ -98,7 +108,16 @@ export class AppComponent {
   private db = inject(DatabaseService);
   private updateService = inject(UpdateService);
 
-  sideNavCollapsed = signal(false);
+  /** Manual sidebar preference toggled by the user. */
+  private readonly manualSideNavCollapsed = signal(false);
+  /** Auto-collapsed while the window is too narrow for a comfortable layout. */
+  private readonly autoSideNavCollapsed = signal(isNarrowViewport());
+  /** Effective collapsed state: manual choice wins only when it is collapsed. */
+  readonly sideNavCollapsed = computed(
+    () => this.manualSideNavCollapsed() || this.autoSideNavCollapsed(),
+  );
+  private lastNarrowViewport = isNarrowViewport();
+
   isDark = signal(false);
 
   readonly showIdlePrompt = signal(false);
@@ -130,6 +149,48 @@ export class AppComponent {
     !window.location.href.includes('windowType=timer');
 
   private timerStateCleanup: (() => void) | null = null;
+  private modalKeyGuardCleanup: (() => void) | null = null;
+  private lastTimerEntryId: string | null = null;
+
+  /**
+   * Capture-phase guard for modal overlays. Keyboard shortcuts are registered
+   * on window/document by pages (e.g. the dashboard day navigation), so a
+   * modal must stop them before they reach those handlers. Keys typed inside
+   * the modal itself are never blocked, and Escape/Tab/Enter/Space (plus
+   * modifier combos) remain available for normal dialog interaction.
+   */
+  private readonly guardModalKeydown = (event: KeyboardEvent): void => {
+    if (event.defaultPrevented || event.isComposing) return;
+
+    const overlays = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'app-idle-prompt [role="dialog"], app-dialog [role="dialog"]',
+      ),
+    );
+    if (overlays.length === 0) return;
+
+    const target = event.target instanceof Node ? event.target : null;
+    if (target && overlays.some((overlay) => overlay.contains(target))) {
+      return;
+    }
+
+    const key = event.key;
+    if (
+      key === 'Escape' ||
+      key === 'Tab' ||
+      key === 'Enter' ||
+      key === ' ' ||
+      key === 'Spacebar' ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey
+    ) {
+      return;
+    }
+
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  };
 
   constructor() {
     if (!this.isMainWindow) {
@@ -141,11 +202,22 @@ export class AppComponent {
       // Load issues and sync state on main window startup
       this.db.loadAll();
 
-      // Listen for timer state updates from the main process.
-      // When the timer stops, reload time entries so the dashboard sees the new entry.
+      // Block page-level shortcuts behind modal overlays. Capture phase runs
+      // before any bubble-phase HostListener on window/document.
+      window.addEventListener('keydown', this.guardModalKeydown, true);
+      this.modalKeyGuardCleanup = () =>
+        window.removeEventListener('keydown', this.guardModalKeydown, true);
+
+      // Listen for timer state updates from the main process. Reload time
+      // entries when the timer stops (dashboard needs the new entry) and when
+      // midnight rollover swaps the running entry under us.
+      this.lastTimerEntryId = this.timerService.timerState()?.entryId ?? null;
       this.timerStateCleanup = this.ipc.onTimerWindowStateUpdate((state) => {
-        if (!state.isRunning && !state.isPaused) {
-          this.db.reloadTimeEntries();
+        const entryChanged = state.entryId !== this.lastTimerEntryId;
+        this.lastTimerEntryId = state.entryId;
+        const stopped = !state.isRunning && !state.isPaused;
+        if (stopped || entryChanged) {
+          void this.db.reloadTimeEntries();
         }
       });
     }
@@ -169,8 +241,31 @@ export class AppComponent {
     });
   }
 
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    const narrow = isNarrowViewport();
+    const crossedThreshold = narrow !== this.lastNarrowViewport;
+    if (!crossedThreshold) return;
+    this.lastNarrowViewport = narrow;
+    this.autoSideNavCollapsed.set(narrow);
+  }
+
+  /**
+   * The user can override the automatic state: expanding while narrow keeps
+   * the sidebar open until the window crosses the breakpoint again.
+   */
+  toggleSideNav(): void {
+    if (this.autoSideNavCollapsed()) {
+      this.autoSideNavCollapsed.set(false);
+      this.manualSideNavCollapsed.set(false);
+      return;
+    }
+    this.manualSideNavCollapsed.update((collapsed) => !collapsed);
+  }
+
   ngOnDestroy(): void {
     this.timerStateCleanup?.();
+    this.modalKeyGuardCleanup?.();
   }
 
   onIdleKeep(): void {
@@ -281,11 +376,8 @@ export class AppComponent {
   ): Array<{ date: string; startTime: string; endTime: string }> {
     const segments: Array<{ date: string; startTime: string; endTime: string }> = [];
     if (endMs <= startMs) return segments;
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const toLocalDate = (d: Date) =>
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const toLocalTime = (d: Date) =>
-      `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
     let cursor = new Date(startMs);
     while (cursor.getTime() < endMs) {
       const nextMidnight = new Date(cursor);
@@ -307,4 +399,9 @@ export class AppComponent {
     this.showAssignDialog.set(false);
     this.showIdlePrompt.set(true);
   }
+}
+
+/** Below this width the full sidebar crowds the page content. */
+function isNarrowViewport(): boolean {
+  return window.innerWidth < 1100;
 }

@@ -1,6 +1,7 @@
 import { Injectable, inject, computed, signal } from '@angular/core';
 import type { JiraConnection, JiraIssue, BacklogIssue, BacklogProject, BacklogSprint, TimeEntry, IpcResponse } from '../../types';
-import { formatJiraLocalIso } from '../utils/datetime';
+import { formatJiraLocalIso, parseLocalDateTime } from '../utils/datetime';
+import { entryDurationSeconds } from '../utils/time';
 
 @Injectable({ providedIn: 'root' })
 export class JiraService {
@@ -136,6 +137,7 @@ export class JiraService {
     if (!api || !query.trim()) return [];
 
     const allIssues: JiraIssue[] = [];
+    const connectionErrors: string[] = [];
     const conns = connectionId
       ? this._connections().filter((c) => c.id === connectionId)
       : this._connections();
@@ -154,10 +156,22 @@ export class JiraService {
         });
         if (res.success && res.issues) {
           allIssues.push(...(res.issues as JiraIssue[]));
+        } else if (!res.success) {
+          connectionErrors.push(
+            res.error || `${conn.name || conn.domain}: Jira search failed`,
+          );
         }
-      } catch {
-        // Skip connections that error
+      } catch (err) {
+        connectionErrors.push(
+          err instanceof Error ? err.message : String(err),
+        );
       }
+    }
+
+    // Surfacing failures matters: otherwise an expired token or outage is
+    // indistinguishable from "no matching issues" in the search dropdown.
+    if (allIssues.length === 0 && connectionErrors.length > 0) {
+      throw new Error(connectionErrors[0]);
     }
 
     return allIssues;
@@ -240,29 +254,32 @@ export class JiraService {
       return { success: false, error: 'No Jira issue key associated with this time entry' };
     }
 
-    const startTime = timeEntry.startTime;
-    const endTime = timeEntry.endTime;
-    if (!endTime) {
+    if (!timeEntry.endTime) {
       return { success: false, error: 'Time entry is still running' };
     }
 
-    const timeSpentSeconds = Math.max(
-      1,
-      Math.round((new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000),
-    );
-
-    // If we already have a worklog id, update the existing worklog
-    if (timeEntry.jiraWorklogId) {
-      // Jira doesn't support PUT worklog via the simple API easily,
-      // so we'll delete and re-add (or use the addWorklog with issue key approach)
+    // Entries store a local date plus wall-clock strings. `new Date('09:00')`
+    // (and `new Date('09:00:00')`) is Invalid Date, which used to send a
+    // broken `started` value to Jira and abort every manual Timesheets sync.
+    const started = parseLocalDateTime(timeEntry.date, timeEntry.startTime);
+    if (!started || Number.isNaN(started.getTime())) {
+      return {
+        success: false,
+        error: `Invalid time entry start (${timeEntry.date} ${timeEntry.startTime})`,
+      };
     }
 
+    const timeSpentSeconds = Math.max(1, entryDurationSeconds(timeEntry));
+
     try {
-      const res = await api.addWorklog({
+      const params = {
         connectionId: connection.id,
         id: connection.id,
         authType: connection.authType ?? 'api-key',
         domain: connection.domain,
+        // OAuth 3LO calls must be routed through the Atlassian API gateway
+        // with the cloud id; the bare domain is not a valid gateway target.
+        cloudId: connection.cloudId ?? undefined,
         email: connection.email,
         apiToken: connection.apiToken,
         accessToken: connection.accessToken,
@@ -272,17 +289,42 @@ export class JiraService {
         // Jira Cloud rejects the bare `Z` (UTC) form that `.toISOString()`
         // produces. It requires explicit local-timezone offset (`+HHMM`),
         // which `formatJiraLocalIso` writes.
-        started: formatJiraLocalIso(new Date(startTime)),
-      });
+        started: formatJiraLocalIso(started),
+      };
 
-      if (res.success && res.worklog) {
-        return {
-          success: true,
-          worklogId: (res.worklog as any).id ?? (res.worklog as any).worklogId,
-        };
+      // Entries imported from Jira (or synced before) already own a Jira
+      // worklog. Update that worklog instead of adding a duplicate one.
+      const res = timeEntry.jiraWorklogId
+        ? await api.updateWorklog({
+            ...params,
+            worklogId: timeEntry.jiraWorklogId,
+          })
+        : await api.addWorklog(params);
+
+      if (res.success) {
+        const worklog = res.worklog as
+          | { id?: string; worklogId?: string }
+          | undefined;
+        const worklogId =
+          worklog?.id ??
+          worklog?.worklogId ??
+          res.worklogId ??
+          (timeEntry.jiraWorklogId || undefined);
+
+        if (!worklogId) {
+          return {
+            success: false,
+            error: 'Jira did not return a worklog id',
+          };
+        }
+
+        return { success: true, worklogId };
       }
 
-      return { success: false, error: res.error ?? 'Unknown error syncing worklog' };
+      return {
+        success: false,
+        error: res.error ?? 'Unknown error syncing worklog',
+      };
     } catch (err) {
       return { success: false, error: String(err) };
     }
@@ -304,7 +346,12 @@ export class JiraService {
       const issueKey = this.resolveIssueKey(entry);
       if (!issueKey) continue;
 
-      const result = await this.syncWorklog(entry, defaultConn);
+      const result = await this.syncWorklog(
+        entry,
+        defaultConn,
+        undefined,
+        issueKey,
+      );
       results.push({ entryId: entry.id, ...result });
     }
 

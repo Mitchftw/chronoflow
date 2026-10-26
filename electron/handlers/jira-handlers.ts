@@ -394,6 +394,13 @@ export function registerJiraHandlers() {
         comment?: string;
       }> = [];
 
+      // A per-issue failure (permissions, transient 5xx, rate limit) must not
+      // be presented as "this issue has no worklogs": the caller uses this
+      // list to delete local entries that no longer exist in Jira.
+      let failures = 0;
+      let truncated =
+        searchResponse.data.isLast === false || issues.length >= 100;
+
       for (const issue of issues) {
         const issueKey = issue.key;
         const issueSummary = issue.fields?.summary || issueKey;
@@ -420,6 +427,12 @@ export function registerJiraHandlers() {
           );
 
           const logs = worklogResponse.data.worklogs || [];
+          if (
+            worklogResponse.data.isLast === false ||
+            logs.length >= 1000
+          ) {
+            truncated = true;
+          }
           logger.debug(
             `Issue ${issueKey}: found ${logs.length} worklogs in date range`,
           );
@@ -442,6 +455,7 @@ export function registerJiraHandlers() {
             });
           }
         } catch (issueError: any) {
+          failures++;
           logger.error(
             `Failed to fetch worklogs for issue ${issueKey}:`,
             issueError,
@@ -449,13 +463,29 @@ export function registerJiraHandlers() {
         }
       }
 
-      return { success: true, worklogs };
+      if (failures > 0 || truncated) {
+        logger.warn(
+          `[jira:get-worklogs-for-date] incomplete result for ${date}: ` +
+            `${failures} issue fetch failure(s), truncated=${truncated}`,
+        );
+      }
+
+      return {
+        success: true,
+        worklogs,
+        complete: failures === 0 && !truncated,
+      };
     } catch (error: any) {
       const errorMessage = handleHttpError(
         error,
         "jira:get-worklogs-for-date",
       );
-      return { success: false, error: errorMessage };
+      return {
+        success: false,
+        worklogs: [],
+        complete: false,
+        error: errorMessage,
+      };
     }
   });
 

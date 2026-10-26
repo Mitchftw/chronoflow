@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, inject, signal, computed, DestroyRef } from '@angular/core';
 import { IpcService } from './ipc.service';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
@@ -20,6 +20,9 @@ export interface AppSettings {
   /** Default hours logged per workday when filling a vacation range on a
    *  Jira "verlof" ticket from /vacation. */
   defaultVacationHours: number;
+  /** Target tracked hours per workday, used for the dashboard daily goal and
+   *  the week overview bars. */
+  dailyGoalHours: number;
   /** Optional remembered Jira key (e.g. `VERL-12`) that prefills the issue
    *  picker on /vacation. Null = no remembered ticket (user picks each time). */
   defaultVacationIssueKey: string | null;
@@ -30,6 +33,16 @@ export interface AppSettings {
 @Injectable({ providedIn: 'root' })
 export class SettingsService {
   private ipc = inject(IpcService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  private readonly systemThemeQuery =
+    typeof window !== 'undefined'
+      ? window.matchMedia('(prefers-color-scheme: dark)')
+      : null;
+
+  private readonly _systemDark = signal(this.systemThemeQuery?.matches ?? false);
+  /** Live OS dark-mode preference; updates when the user changes it. */
+  readonly systemDark = this._systemDark.asReadonly();
 
   private readonly _settings = signal<AppSettings>({
     themePreference: 'system',
@@ -41,21 +54,31 @@ export class SettingsService {
     autoHideNotch: false,
     notchDisplayId: null,
     defaultVacationHours: 8,
+    dailyGoalHours: 8,
     defaultVacationIssueKey: null,
     droplets: {},
   });
 
   readonly settings = this._settings.asReadonly();
 
+  /** Set when an optimistic settings save failed and was rolled back. */
+  readonly saveError = signal<string | null>(null);
+
   readonly resolvedTheme = computed<'light' | 'dark'>(() => {
     const pref = this._settings().themePreference;
     if (pref === 'light' || pref === 'dark') return pref;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
+    return this._systemDark() ? 'dark' : 'light';
   });
 
   constructor() {
+    const query = this.systemThemeQuery;
+    if (query) {
+      const onChange = (event: MediaQueryListEvent): void => {
+        this._systemDark.set(event.matches);
+      };
+      query.addEventListener('change', onChange);
+      this.destroyRef.onDestroy(() => query.removeEventListener('change', onChange));
+    }
     this.load();
   }
 
@@ -74,12 +97,19 @@ export class SettingsService {
   }
 
   async update(partial: Partial<AppSettings>): Promise<void> {
-    const previousMode = this._settings().timerMode;
+    const previous = this._settings();
+    const previousMode = previous.timerMode;
+    this.saveError.set(null);
     this._settings.update((s) => ({ ...s, ...partial }));
     try {
       await this.ipc.setSettings('app', { ...this._settings() });
     } catch (err) {
       console.error('Failed to save settings', err);
+      // Optimistic updates must not lie about persisted state: roll back the
+      // in-memory object and let the settings page surface a small error.
+      this._settings.set(previous);
+      this.saveError.set('Could not save settings. Your change was reverted.');
+      return;
     }
     // If the timerMode setting changed, propagate it to the currently-open
     // timer window. No-op in the main process if window is closed, so

@@ -1,4 +1,5 @@
 import { Component, ChangeDetectionStrategy, input, output, computed } from '@angular/core';
+import { formatDurationMinutes } from '../../utils/time';
 
 export interface HeatmapDay {
   /** ISO date (yyyy-MM-dd). */
@@ -7,7 +8,7 @@ export interface HeatmapDay {
   weekday: string;
   /** Day-of-month number. */
   dayNumber: number;
-  /** Tracked minutes for the day. */
+  /** Tracked minutes for the day (fractional while the timer is running). */
   minutes: number;
   isToday: boolean;
   isSelected: boolean;
@@ -21,12 +22,12 @@ export interface HeatmapDay {
 @Component({
   selector: 'app-week-heatmap',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block select-none' },
+  host: { class: 'block' },
   template: `
     <section class="app-card p-4">
       <div class="mb-3 flex items-center justify-between">
-        <span class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">This week</span>
-        <span class="text-[10px] font-semibold text-muted-foreground/70">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{{ title() }}</span>
+        <span class="text-[10px] font-semibold text-muted-foreground">
           <b class="text-foreground">{{ formatDuration(weekTotal()) }}</b> · {{ activeDays() }}/7 days
         </span>
       </div>
@@ -44,7 +45,7 @@ export interface HeatmapDay {
           >
             <span
               class="w-8 shrink-0 text-left text-[10px] font-bold uppercase tracking-wider"
-              [class]="day.isToday || day.isSelected ? 'text-primary' : 'text-muted-foreground/60'"
+              [class]="day.isToday || day.isSelected ? 'text-primary' : 'text-muted-foreground'"
             >{{ day.weekday }}</span>
 
             <span class="relative h-2 flex-1 overflow-hidden rounded-full bg-muted/50">
@@ -53,11 +54,13 @@ export interface HeatmapDay {
                 [style.width.%]="pct(day.minutes)"
                 [style.background-color]="intensityColor(day.minutes)"
               ></span>
+              <!-- Subtle daily-goal marker at 100%. -->
+              <span class="absolute inset-y-0 right-0 w-px bg-foreground/20" aria-hidden="true"></span>
             </span>
 
             <span
               class="w-11 shrink-0 text-right font-mono text-[10px] font-semibold tabular-nums"
-              [class]="day.minutes > 0 ? 'text-foreground/80' : 'text-muted-foreground/35'"
+              [class]="day.minutes > 0 ? 'text-foreground/80' : 'text-muted-foreground/60'"
             >
               {{ day.minutes > 0 ? shortDuration(day.minutes) : '—' }}
             </span>
@@ -70,6 +73,8 @@ export interface HeatmapDay {
 export class WeekHeatmapComponent {
   readonly days = input.required<HeatmapDay[]>();
   readonly goalMinutes = input(480);
+  /** Section heading, e.g. "This week" or "Week of Oct 20". */
+  readonly title = input('This week');
 
   readonly daySelected = output<string>();
 
@@ -96,16 +101,10 @@ export class WeekHeatmapComponent {
   }
 
   shortDuration(minutes: number): string {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    if (h > 0) return m > 0 ? `${h}h${m}` : `${h}h`;
-    return `${m}m`;
+    return formatDurationMinutes(minutes);
   }
 
   formatDuration(minutes: number): string {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
-    return `${m}m`;
+    return formatDurationMinutes(minutes);
   }
 }

@@ -45,6 +45,7 @@ import { AgentsPanelComponent } from '../../droplets/agents-panel.component';
             [class]="panel() === 'media' ? 'border-primary/60 bg-primary/20' : 'border-white/15 bg-white/5'"
             (click)="togglePanel('media')"
             [title]="media.title()"
+            [attr.aria-expanded]="panel() === 'media'"
             aria-label="Toggle now playing"
           >
             @if (media.coverUrl(); as cover) {
@@ -62,6 +63,7 @@ import { AgentsPanelComponent } from '../../droplets/agents-panel.component';
             [class]="panel() === 'agents' ? 'border-primary/60 bg-primary/20 text-white' : 'border-white/15 bg-white/5 text-white/80'"
             (click)="togglePanel('agents')"
             title="Agent usage (Codex / Claude)"
+            [attr.aria-expanded]="panel() === 'agents'"
             aria-label="Toggle agent usage"
           >
             @if (agents.anyWorking()) {
@@ -99,7 +101,11 @@ import { AgentsPanelComponent } from '../../droplets/agents-panel.component';
           </div>
 
           <!-- Center: Time -->
-          <div class="font-mono text-[13px] font-bold text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.45)]">
+          <div
+            class="font-mono text-[13px] font-bold text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.45)]"
+            aria-live="polite"
+            [attr.aria-label]="'Elapsed time ' + formattedTime()"
+          >
             {{ formattedTime() }}
           </div>
 
@@ -145,6 +151,7 @@ import { AgentsPanelComponent } from '../../droplets/agents-panel.component';
             <div class="flex-1 min-w-0">
               <app-search-bar
                 [localIssues]="localIssues()"
+                [createActionLabel]="'Create & start local task'"
                 [placeholder]="'Search to start...'"
                 [variant]="'notch'"
                 (resultSelected)="resultSelected.emit($event)"

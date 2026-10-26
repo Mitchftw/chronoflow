@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { IpcService } from '../../services/ipc.service';
 import { SettingsService } from '../../services/settings.service';
@@ -32,13 +32,27 @@ import { TimerService } from '../../services/timer.service';
           type="button"
           class="no-drag flex min-w-0 items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-primary transition-all duration-200 hover:bg-primary/20 active:scale-[0.98] cursor-pointer"
           (click)="goToDashboard()"
-          title="Timer running: open the dashboard"
-          aria-label="Timer running, open dashboard"
+          [title]="timerPillTitle()"
+          [attr.aria-label]="timerPillTitle() + '. Open dashboard.'"
         >
           <span class="size-1.5 shrink-0 rounded-full bg-green-500 animate-pulse"></span>
           <span class="font-mono text-[11px] font-bold tabular-nums">{{ timer.formattedElapsed() }}</span>
-          @if (timer.activeIssue()?.jiraIssueKey) {
-            <span class="max-w-[9rem] truncate text-[10px] font-bold text-foreground/70">{{ timer.activeIssue()?.jiraIssueKey }}</span>
+          @if (timer.activeIssue(); as issue) {
+            @if (issue.jiraIssueKey) {
+              <span
+                class="max-w-[4.5rem] shrink-0 truncate font-mono text-[10px] font-bold text-foreground/70"
+                [title]="issue.jiraIssueKey"
+              >{{ issue.jiraIssueKey }}</span>
+              <span
+                class="max-w-[8rem] truncate text-[10px] font-medium text-foreground/50"
+                [title]="issue.title"
+              >{{ issue.title }}</span>
+            } @else {
+              <span
+                class="max-w-[12rem] truncate text-[10px] font-medium text-foreground/70"
+                [title]="issue.title"
+              >{{ issue.title }}</span>
+            }
           }
         </button>
       }
@@ -85,6 +99,13 @@ export class TitleBarComponent {
   protected timer = inject(TimerService);
   private router = inject(Router);
   readonly isDev = signal(false);
+
+  readonly timerPillTitle = computed(() => {
+    const issue = this.timer.activeIssue();
+    if (!issue) return 'Timer running: open the dashboard';
+    const key = issue.jiraIssueKey ? `${issue.jiraIssueKey} · ` : '';
+    return `Timer running: ${key}${issue.title}`;
+  });
 
   constructor() {
     this.ipc.getIsDev().then((dev) => this.isDev.set(dev));

@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 import * as dbService from "../db-service";
+import { getTimerState } from "./timer-handlers";
 
 let storeOperationQueue: Promise<void> = Promise.resolve();
 
@@ -51,7 +52,26 @@ export function registerStoreHandlers() {
         }
         case "issues": {
           if (value && Array.isArray(value)) {
-            await dbService.syncIssues(value);
+            // The renderer performs full-list syncs. Never let a stale list
+            // (or a bulk delete) remove the issue that is currently being
+            // timed: the FK cascade would delete the open time entry and
+            // leave the timer pointing at a row that no longer exists.
+            const runningIssueId = getTimerState().issueId;
+            let safeValue = value;
+            if (
+              runningIssueId &&
+              !value.some((issue: any) => issue?.id === runningIssueId)
+            ) {
+              const runningIssue = await dbService.getIssue(runningIssueId);
+              if (runningIssue) safeValue = [...value, runningIssue];
+            }
+            await dbService.syncIssues(safeValue);
+          } else if (getTimerState().issueId) {
+            // Refuse a bulk wipe while a timer is running. Re-creating the
+            // issue afterwards would not bring back its cascaded time entry.
+            console.warn(
+              "[store] Refusing to delete all issues while a timer is running",
+            );
           } else {
             await dbService.deleteAllIssues();
           }

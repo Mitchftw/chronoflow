@@ -6,3 +6,20 @@ out/
 *.log
 .env
 .DS_Store
+
+# Angular / build caches
+.angular/
+*.tsbuildinfo
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Local agent/tool state
+.sisyphus/
+.freebuff/
+.playwright-mcp/
+
+# Local scratch files (not part of ChronoFlow)
+/jackass-intro.html
+/screenshot.png

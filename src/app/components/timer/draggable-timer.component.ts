@@ -38,8 +38,10 @@ import type { Issue } from '../../models/issue';
         <!-- Controls -->
         <div class="flex items-center gap-1.5 no-drag">
           <button
+            type="button"
             class="flex size-8.5 items-center justify-center rounded-xl bg-red-500/20 border border-red-500/35 text-red-500 transition-all duration-300 hover:bg-red-500 hover:text-white hover:scale-105 active:scale-95 cursor-pointer shadow-sm"
             (click)="stop.emit()"
+            title="Stop timer"
             aria-label="Stop timer"
           >
             <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -47,9 +49,11 @@ import type { Issue } from '../../models/issue';
             </svg>
           </button>
           <button
-            class="flex size-8.5 items-center justify-center rounded-xl text-zinc-400 transition-all duration-300 hover:bg-white/10 hover:text-white active:scale-95 cursor-pointer"
+            type="button"
+            class="flex size-8.5 items-center justify-center rounded-xl text-zinc-400 transition-all duration-300 hover:bg-red-500/20 hover:text-red-400 active:scale-95 cursor-pointer"
             (click)="close.emit()"
-            aria-label="Close timer"
+            title="Stop timer and close overlay"
+            aria-label="Stop timer and close overlay"
           >
             <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -62,6 +66,7 @@ import type { Issue } from '../../models/issue';
           <div class="flex-1 min-w-0">
             <app-search-bar
               [localIssues]="localIssues()"
+              [createActionLabel]="'Create & start local task'"
               [placeholder]="'Search to start task...'"
               [variant]="'draggable'"
               (resultSelected)="resultSelected.emit($event)"
@@ -70,9 +75,11 @@ import type { Issue } from '../../models/issue';
           <!-- Close button -->
           <div class="flex items-center gap-1.5 no-drag shrink-0">
             <button
+              type="button"
               class="flex size-8.5 items-center justify-center rounded-xl text-zinc-400 transition-all duration-300 hover:bg-white/10 hover:text-white active:scale-95 cursor-pointer"
               (click)="close.emit()"
-              aria-label="Close timer"
+              title="Close overlay"
+              aria-label="Close overlay"
             >
               <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />

@@ -1,4 +1,15 @@
-import { Component, ChangeDetectionStrategy, input, output, signal, computed, effect } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  viewChild,
+} from '@angular/core';
 
 @Component({
   selector: 'app-idle-prompt',
@@ -6,16 +17,17 @@ import { Component, ChangeDetectionStrategy, input, output, signal, computed, ef
   host: { class: 'block' },
   template: `
     @if (visible()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <!-- Backdrop -->
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div class="pointer-events-none absolute inset-0 bg-black/65 backdrop-blur-md"></div>
 
         <!-- Prompt card -->
         <div
-          class="relative z-10 w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+          class="app-card relative z-10 max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto bg-card/95 p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
           role="dialog"
           aria-modal="true"
           aria-labelledby="idle-prompt-title"
+          aria-describedby="idle-prompt-description"
         >
           <!-- Icon -->
           <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
@@ -30,7 +42,7 @@ import { Component, ChangeDetectionStrategy, input, output, signal, computed, ef
           </h2>
 
           <!-- Body -->
-          <p class="mb-6 text-center text-sm text-muted-foreground">
+          <p id="idle-prompt-description" class="mb-6 text-center text-sm text-muted-foreground">
             You were away for
             <strong class="text-foreground">{{ formattedAwayTime() }}</strong>.
             What would you like to do with this time?
@@ -39,7 +51,9 @@ import { Component, ChangeDetectionStrategy, input, output, signal, computed, ef
           <!-- Actions -->
           <div class="flex flex-col gap-2">
             <button
-              class="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              #firstAction
+              type="button"
+              class="btn btn-primary w-full"
               (click)="keep.emit()"
             >
               <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -49,7 +63,8 @@ import { Component, ChangeDetectionStrategy, input, output, signal, computed, ef
             </button>
 
             <button
-              class="inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+              type="button"
+              class="btn btn-secondary w-full"
               (click)="discard.emit()"
             >
               <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -59,7 +74,8 @@ import { Component, ChangeDetectionStrategy, input, output, signal, computed, ef
             </button>
 
             <button
-              class="inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+              type="button"
+              class="btn btn-secondary w-full"
               (click)="assign.emit()"
             >
               <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -71,19 +87,23 @@ import { Component, ChangeDetectionStrategy, input, output, signal, computed, ef
           </div>
         </div>
       </div>
-
-      <!-- Animations -->
-      <style>
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        .animate-in { animation: fadeIn 0.2s ease-out; }
-        .fade-in { animation-name: fadeIn; }
-        .zoom-in-95 { animation-name: zoomIn; }
-      </style>
     }
+
+    <!-- Animations -->
+    <style>
+      @keyframes idlePromptFadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes idlePromptZoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+      .animate-in { animation: idlePromptFadeIn 0.2s ease-out; }
+      .fade-in { animation-name: idlePromptFadeIn; }
+      .zoom-in-95 { animation-name: idlePromptZoomIn; }
+    </style>
   `,
 })
 export class IdlePromptComponent {
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly firstAction = viewChild<ElementRef<HTMLButtonElement>>('firstAction');
+  private focusTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** Whether the prompt is visible */
   readonly visible = input(false);
 
@@ -112,4 +132,21 @@ export class IdlePromptComponent {
 
   /** Assign the idle time to another issue */
   readonly assign = output<void>();
+
+  constructor() {
+    // The prompt requires an explicit decision, so move keyboard focus onto
+    // the primary action as soon as it appears.
+    effect(() => {
+      if (!this.visible()) return;
+      if (this.focusTimer) clearTimeout(this.focusTimer);
+      this.focusTimer = setTimeout(() => {
+        this.focusTimer = null;
+        if (this.visible()) this.firstAction()?.nativeElement.focus();
+      }, 0);
+    });
+
+    this.destroyRef.onDestroy(() => {
+      if (this.focusTimer) clearTimeout(this.focusTimer);
+    });
+  }
 }

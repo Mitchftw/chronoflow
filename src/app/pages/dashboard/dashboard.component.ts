@@ -23,10 +23,12 @@ import {
 import { TimeEntryListComponent } from '../../components/dashboard/time-entry-list.component';
 import { TimeEntryEditDialogComponent } from '../../components/dashboard/time-entry-edit-dialog.component';
 import { TimeEntrySplitDialogComponent } from '../../components/dashboard/time-entry-split-dialog.component';
+import { DialogComponent } from '../../components/common/dialog.component';
 import type { Issue } from '../../models/issue';
 import type { TimeEntry } from '../../models/time-entry';
 import { type SearchResult } from '../../components/common/search-bar.component';
 import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'date-fns';
+import { formatTimeHm, toLocalDate } from '../../utils/time';
 
 @Component({
   selector: 'app-dashboard',
@@ -39,6 +41,7 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
     TimeEntryListComponent,
     TimeEntryEditDialogComponent,
     TimeEntrySplitDialogComponent,
+    DialogComponent,
   ],
   host: { class: 'block' },
   template: `
@@ -103,7 +106,7 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
     </header>
 
     @if (errorMessage()) {
- <div class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive-foreground shadow-sm transition-all animate-in fade-in slide-in-from-top-2 duration-200">
+ <div class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-sm transition-all animate-in fade-in slide-in-from-top-2 duration-200">
         <div class="flex items-center gap-2">
           <svg class="size-4 shrink-0 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
@@ -111,8 +114,29 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
           <span>{{ errorMessage() }}</span>
         </div>
         <button
-          class="text-destructive-foreground/60 hover:text-destructive-foreground transition-all cursor-pointer"
+          class="text-destructive/60 hover:text-destructive transition-all cursor-pointer"
           (click)="errorMessage.set(null)"
+          aria-label="Dismiss error"
+        >
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    }
+
+    @if (successMessage()) {
+      <div class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-sm text-green-700 shadow-sm transition-all animate-in fade-in slide-in-from-top-2 duration-200 dark:text-green-300">
+        <div class="flex items-center gap-2">
+          <svg class="size-4 shrink-0 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>{{ successMessage() }}</span>
+        </div>
+        <button
+          class="text-green-700/60 hover:text-green-700 dark:text-green-300/60 dark:hover:text-green-300 transition-all cursor-pointer"
+          (click)="successMessage.set(null)"
+          aria-label="Dismiss status message"
         >
           <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -155,7 +179,8 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
           [issues]="db.issues()"
           [dateLabel]="dateLabel()"
           [activeEntryId]="timer.timerState()?.entryId ?? null"
-          (deleteEntry)="deleteEntry($event)"
+          [activeElapsedMs]="activeEntryElapsedMs()"
+          (deleteEntry)="requestDeleteEntry($event)"
           (editEntry)="openEditEntryDialog($event)"
           (splitEntry)="openSplitEntryDialog($event)"
           (resumeEntry)="resumeEntry($event)"
@@ -165,10 +190,11 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
 
       <!-- Side rail -->
       <aside class="space-y-6 xl:col-span-1">
-        <app-stats-cards [stats]="stats()" />
+        <app-stats-cards [stats]="stats()" [label]="trackedLabel()" />
         <app-week-heatmap
           [days]="weekDays()"
-          [goalMinutes]="(settings.settings().defaultVacationHours || 8) * 60"
+          [title]="weekTitle()"
+          [goalMinutes]="dailyGoalMinutes()"
           (daySelected)="selectDate($event)"
         />
       </aside>
@@ -192,6 +218,43 @@ import { format, addDays, subDays, startOfDay, startOfWeek, isSameDay } from 'da
       [issues]="db.issues()"
       (saved)="onSplitSaved()"
     />
+
+    <!-- Delete confirmation -->
+    <app-dialog
+      [(isOpen)]="showDeleteDialog"
+      title="Delete Time Entry"
+      [confirmLabel]="deletingEntry() ? 'Deleting…' : 'Delete'"
+      [confirmDisabled]="deletingEntry() || !!deleteBlockedMessage()"
+      (confirm)="confirmDeleteEntry()"
+      (close)="closeDeleteDialog()"
+    >
+      @if (pendingDeleteEntry(); as entry) {
+        <div class="space-y-3">
+          <p class="text-sm text-muted-foreground">
+            Delete this time entry? This action cannot be undone.
+          </p>
+          <div class="rounded-xl border border-border/40 bg-muted/20 px-4 py-3">
+            <p class="font-mono text-sm font-semibold text-foreground/90">
+              {{ formatTime(entry.startTime) }} – {{ entry.endTime ? formatTime(entry.endTime) : 'Running' }}
+            </p>
+            <p class="mt-1 text-xs text-muted-foreground">{{ issueTitle(entry.issueId) }}</p>
+            @if (entry.note) {
+              <p class="mt-1 truncate text-xs italic text-muted-foreground">{{ entry.note }}</p>
+            }
+          </div>
+          @if (deleteBlockedMessage()) {
+            <div class="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-xs font-medium text-destructive" role="alert">
+              {{ deleteBlockedMessage() }}
+            </div>
+          }
+          @if (deleteError()) {
+            <div class="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-xs font-medium text-destructive" role="alert">
+              {{ deleteError() }}
+            </div>
+          }
+        </div>
+      }
+    </app-dialog>
 
     <!-- Loading overlay -->
     @if (db.loading()) {
@@ -219,13 +282,30 @@ export class DashboardComponent {
   readonly selectedDate = this.dashboardState.selectedDate;
   statusMessage = signal<string>('');
   errorMessage = signal<string | null>(null);
+  successMessage = signal<string | null>(null);
 
   isTimeEntryDialogOpen = signal(false);
   selectedTimeEntry = signal<TimeEntry | null>(null);
   entryPrefill = signal<{ startTime?: string; endTime?: string; issueId?: string } | null>(null);
   isSplitDialogOpen = signal(false);
   selectedSplitEntry = signal<TimeEntry | null>(null);
-  formattedDate = computed(() => format(this.selectedDate(), 'yyyy-MM-dd'));
+
+  showDeleteDialog = signal(false);
+  pendingDeleteEntry = signal<TimeEntry | null>(null);
+  deleteError = signal<string | null>(null);
+  deletingEntry = signal(false);
+
+  readonly deleteBlockedMessage = computed(() => {
+    const entry = this.pendingDeleteEntry();
+    if (!entry) return null;
+    return this.timer.timerState()?.entryId === entry.id
+      ? 'This entry is currently being timed. Stop the timer before deleting it.'
+      : null;
+  });
+
+  readonly formatTime = formatTimeHm;
+
+  formattedDate = computed(() => toLocalDate(this.selectedDate()));
   
   displayDate = computed(() => {
     const date = this.selectedDate();
@@ -243,8 +323,29 @@ export class DashboardComponent {
 
   isToday = computed(() => isSameDay(this.selectedDate(), new Date()));
 
+  /** Caption for the tracked-time card: the total always belongs to the selected day. */
+  trackedLabel = computed(() =>
+    this.isToday() ? 'Tracked today' : `Tracked on ${format(this.selectedDate(), 'MMM d')}`,
+  );
+
+  /** Daily goal comes from the workday setting, never from the vacation default. */
+  dailyGoalMinutes = computed(() => (this.settings.settings().dailyGoalHours ?? 8) * 60);
+
+  /** Heading for the week strip: "This week" or "Week of Oct 20". */
+  weekTitle = computed(() => {
+    const selectedWeekStart = startOfWeek(this.selectedDate(), { weekStartsOn: 1 });
+    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    return isSameDay(selectedWeekStart, currentWeekStart)
+      ? 'This week'
+      : `Week of ${format(selectedWeekStart, 'MMM d')}`;
+  });
+
   /** Monday–Sunday strip for the week containing the selected day. */
   weekDays = computed<HeatmapDay[]>(() => {
+    // The tick is only here to invalidate the computed every second while a
+    // timer runs; getEntryDuration() already returns the live duration for an
+    // open entry dated today.
+    this.timer.elapsedMs();
     const weekStart = startOfWeek(this.selectedDate(), { weekStartsOn: 1 });
     const entries = this.db.timeEntries();
     const today = new Date();
@@ -252,10 +353,14 @@ export class DashboardComponent {
     const days: HeatmapDay[] = [];
     for (let i = 0; i < 7; i++) {
       const day = addDays(weekStart, i);
-      const iso = format(day, 'yyyy-MM-dd');
+      const iso = toLocalDate(day);
       const minutes = entries
         .filter((e) => e.date === iso)
-        .reduce((sum, e) => sum + Math.round(this.db.getEntryDuration(e) / 60000), 0);
+        .reduce((sum, e) => {
+          // Keep fractional minutes so the bar reflects a running timer
+          // before the first full minute has elapsed.
+          return sum + this.db.getEntryDuration(e) / 60000;
+        }, 0);
       days.push({
         date: iso,
         weekday: format(day, 'EEE'),
@@ -269,22 +374,42 @@ export class DashboardComponent {
   });
 
   selectedDateEntries = computed(() => {
-    const formatted = format(this.selectedDate(), 'yyyy-MM-dd');
+    const formatted = toLocalDate(this.selectedDate());
     return this.db.getTimeEntriesForDate(formatted);
   });
 
+  /**
+   * The live duration of the current timer segment, matching the entry's own
+   * date/start time. This is deliberately derived from the entry rather than
+   * TimerService.elapsedMs (which is the total timer duration and may include
+   * previous days after a midnight rollover).
+   */
+  readonly activeEntryElapsedMs = computed(() => {
+    this.timer.elapsedMs();
+    const runningId = this.timer.timerState()?.entryId;
+    if (!runningId) return 0;
+    const entry = this.selectedDateEntries().find(
+      (candidate) => candidate.id === runningId && !candidate.endTime,
+    );
+    return entry ? this.db.getEntryDuration(entry) : 0;
+  });
+
   stats = computed<DashboardStats>(() => {
-    const formatted = format(this.selectedDate(), 'yyyy-MM-dd');
+    this.timer.elapsedMs();
+    const formatted = toLocalDate(this.selectedDate());
     const entries = this.db.getTimeEntriesForDate(formatted);
-    const ms = entries.reduce((total, e) => total + this.db.getEntryDuration(e), 0);
+    const ms = entries.reduce(
+      (total, entry) => total + this.db.getEntryDuration(entry),
+      0,
+    );
     const issues = this.db.issues();
-    
+
     return {
       todayTimeMs: ms,
       projectCount: this.db.projects().length,
       issueCount: issues.length,
       completedCount: issues.filter((i) => i.status === 'done').length,
-      goalMinutes: (this.settings.settings().defaultVacationHours || 8) * 60,
+      goalMinutes: this.dailyGoalMinutes(),
     };
   });
 
@@ -315,6 +440,16 @@ export class DashboardComponent {
   @HostListener('window:keydown', ['$event'])
   handleShortcut(event: KeyboardEvent): void {
     if (this.isTimeEntryDialogOpen() || this.isSplitDialogOpen()) return;
+    // app-dialog is used by the edit/split forms and the idle prompt; while
+    // either is open, day navigation and "stop timer" shortcuts must not fire
+    // behind the modal.
+    if (
+      document.querySelector(
+        'app-dialog [role="dialog"], app-idle-prompt [role="dialog"]',
+      )
+    ) {
+      return;
+    }
     const target = event.target as HTMLElement | null;
     if (
       target &&
@@ -353,11 +488,14 @@ export class DashboardComponent {
 
   async syncJira() {
     this.errorMessage.set(null);
+    this.successMessage.set(null);
     this.statusMessage.set('Syncing local worklogs to Jira...');
-    const formatted = format(this.selectedDate(), 'yyyy-MM-dd');
+    const formatted = toLocalDate(this.selectedDate());
     try {
       const result = await this.db.syncLocalToJira(formatted);
-      console.log(`Sync complete: ${result.pushed} pushed, ${result.updated} updated, ${result.deleted} deleted`);
+      this.successMessage.set(
+        `Jira sync complete: ${result.pushed} pushed, ${result.updated} updated, ${result.deleted} deleted.`,
+      );
     } catch (err: any) {
       console.error('Jira sync failed', err);
       this.errorMessage.set(err?.message || 'Jira sync failed. Check connection settings.');
@@ -366,11 +504,14 @@ export class DashboardComponent {
 
   async loadJira() {
     this.errorMessage.set(null);
+    this.successMessage.set(null);
     this.statusMessage.set('Loading issues and worklogs from Jira...');
-    const formatted = format(this.selectedDate(), 'yyyy-MM-dd');
+    const formatted = toLocalDate(this.selectedDate());
     try {
       const result = await this.db.loadFromJira(formatted);
-      console.log(`Load complete: ${result.loadedIssues} issues loaded/updated, ${result.loadedWorklogs} worklogs loaded`);
+      this.successMessage.set(
+        `Jira load complete: ${result.loadedIssues} issues loaded/updated, ${result.loadedWorklogs} worklogs loaded.`,
+      );
     } catch (err: any) {
       console.error('Jira load failed', err);
       this.errorMessage.set(err?.message || 'Failed to load from Jira. Check connection settings.');
@@ -409,8 +550,46 @@ export class DashboardComponent {
     await this.db.reloadTimeEntries();
   }
 
-  async deleteEntry(entryId: string): Promise<void> {
-    await this.db.deleteTimeEntry(entryId);
+  requestDeleteEntry(entryId: string): void {
+    const entry = this.db.timeEntries().find((candidate) => candidate.id === entryId);
+    if (!entry) return;
+    this.deleteError.set(null);
+    this.pendingDeleteEntry.set(entry);
+    this.showDeleteDialog.set(true);
+  }
+
+  closeDeleteDialog(): void {
+    this.showDeleteDialog.set(false);
+    this.pendingDeleteEntry.set(null);
+    this.deleteError.set(null);
+  }
+
+  async confirmDeleteEntry(): Promise<void> {
+    const entry = this.pendingDeleteEntry();
+    if (!entry || this.deletingEntry()) return;
+    if (this.deleteBlockedMessage()) {
+      this.deleteError.set(this.deleteBlockedMessage());
+      return;
+    }
+
+    this.deletingEntry.set(true);
+    this.deleteError.set(null);
+    try {
+      await this.db.deleteTimeEntry(entry.id);
+      this.closeDeleteDialog();
+    } catch (err) {
+      this.deleteError.set(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Could not delete the time entry.',
+      );
+    } finally {
+      this.deletingEntry.set(false);
+    }
+  }
+
+  issueTitle(issueId: string): string {
+    return this.db.getIssueById(issueId)?.title ?? 'Unknown Issue';
   }
 
   openEditEntryDialog(entry: TimeEntry): void {

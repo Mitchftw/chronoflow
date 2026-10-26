@@ -15,7 +15,7 @@ interface ToastInfo {
     @if (showToast(); as toast) {
       <div class="fixed bottom-5 right-5 z-50 w-[min(24rem,calc(100vw-2.5rem))]">
         <div
-          class="relative overflow-hidden rounded-xl border border-border/40 bg-card/95 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+          class="update-toast-enter relative overflow-hidden rounded-xl border border-border/40 bg-card/95 shadow-2xl"
           role="status"
         >
           <!-- Accent bar -->
@@ -83,6 +83,18 @@ interface ToastInfo {
         </div>
       </div>
     }
+
+    <!-- Self-contained enter animation; does not depend on the dialog/toast
+         overlay styles being mounted elsewhere. -->
+    <style>
+      @keyframes updateToastEnter {
+        from { opacity: 0; transform: translateY(6px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      .update-toast-enter {
+        animation: updateToastEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+    </style>
   `,
 })
 export class UpdateToastComponent {

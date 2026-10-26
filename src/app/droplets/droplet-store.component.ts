@@ -1,4 +1,10 @@
-import { Component, ChangeDetectionStrategy, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  HostListener,
+  inject,
+  signal,
+} from '@angular/core';
 import { DropletRegistryService, type DropletDef } from './droplet-registry.service';
 
 /** Droplet marketplace: browse the available droplets and install/remove them. */
@@ -13,8 +19,10 @@ import { DropletRegistryService, type DropletDef } from './droplet-registry.serv
           class="group flex cursor-pointer flex-col gap-3 rounded-xl border border-border/40 bg-background/40 p-4 transition-all duration-300 hover:border-primary/40 hover:bg-background/60"
           role="button"
           tabindex="0"
+          aria-haspopup="dialog"
           (click)="selected.set(d)"
           (keydown.enter)="selected.set(d)"
+          (keydown.space)="$event.preventDefault(); selected.set(d)"
         >
           <div class="flex items-start gap-3">
             <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-sm font-black text-primary">
@@ -36,6 +44,7 @@ import { DropletRegistryService, type DropletDef } from './droplet-registry.serv
                   ? 'border border-border/40 text-muted-foreground hover:text-foreground hover:bg-secondary/40'
                   : 'bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:brightness-110'"
                 (click)="$event.stopPropagation(); registry.toggle(d.id)"
+                (keydown)="$event.stopPropagation()"
               >{{ registry.isEnabled(d.id) ? 'Installed' : 'Install' }}</button>
             }
           </div>
@@ -45,9 +54,8 @@ import { DropletRegistryService, type DropletDef } from './droplet-registry.serv
 
     @if (selected(); as d) {
       <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
         (click)="selected.set(null)"
-        (keydown.escape)="selected.set(null)"
       >
         <div
           class="w-full max-w-lg rounded-2xl border border-border/40 bg-card p-6 shadow-2xl"
@@ -111,4 +119,9 @@ import { DropletRegistryService, type DropletDef } from './droplet-registry.serv
 export class DropletStoreComponent {
   protected registry = inject(DropletRegistryService);
   protected selected = signal<DropletDef | null>(null);
+
+  @HostListener('document:keydown.escape')
+  closeDetails(): void {
+    this.selected.set(null);
+  }
 }

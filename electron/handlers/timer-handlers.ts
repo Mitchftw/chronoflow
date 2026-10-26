@@ -2,6 +2,17 @@ import { ipcMain, BrowserWindow } from "electron";
 import { randomUUID } from "crypto";
 import * as dbService from "../db-service";
 import { logger } from "../utils/logger";
+import type { TimeEntry } from "../../src/types";
+import {
+  addLocalDays,
+  endOfLocalDay,
+  formatTimeHms as formatLocalTime,
+  localMidnight,
+  nextLocalMidnight,
+  parseLocalDate,
+  parseLocalDateTime,
+  toLocalDate as formatLocalDate,
+} from "../utils/time";
 
 /**
  * In-memory timer state — the main process is the authoritative timekeeper.
@@ -27,17 +38,14 @@ let timerState: {
   pauseStart: null,
 };
 
-/** Format a Date as local wall-clock time HH:MM:SS (the DB convention). */
-function formatLocalTime(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
+type WindowGetter = () => BrowserWindow | null;
 
-/** Format a Date as a local calendar date YYYY-MM-DD (the DB convention). */
-function formatLocalDate(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+// Registered by registerTimerHandlers. The rollover monitor can start before
+// the windows exist (restore runs first), so these are optional.
+let timerWindowGetter: WindowGetter | null = null;
+let mainWindowGetter: WindowGetter | null = null;
+let rolloverMonitor: ReturnType<typeof setInterval> | null = null;
+let rolloverInFlight: Promise<boolean> | null = null;
 
 /** Convert a "HH:MM[:SS]" wall-clock string to ms since local midnight. */
 function parseWallClockToMs(time: string): number {
@@ -89,6 +97,10 @@ export async function restoreRunningTimerFromDb(): Promise<void> {
     }
   } catch (error: any) {
     logger.error("Failed to restore running timer:", error);
+  } finally {
+    // Start the midnight monitor even when no timer was restored — it is a
+    // no-op until a timer is running and covers timers started later.
+    startTimerRolloverMonitor();
   }
 }
 
@@ -122,7 +134,17 @@ export async function resumeOpenEntry(
       pausedElapsed: 0,
       pauseStart: null,
     };
-    realignRunningTimer(entry.startTime);
+
+    // Prefer the entry's real date + start time over wall-clock realignment.
+    // A timer left open for more than 24h must keep its full elapsed time so
+    // the rollover/split entries and issue.timeSpent still agree.
+    const actualStart = parseLocalDateTime(entry.date, entry.startTime);
+    if (actualStart && actualStart.getTime() <= Date.now()) {
+      timerState.startTime = actualStart.getTime();
+      timerState.initialStartTime = actualStart.getTime();
+    } else {
+      realignRunningTimer(entry.startTime);
+    }
 
     const issue = await dbService.getIssue(entry.issueId);
     if (issue) {
@@ -131,6 +153,10 @@ export async function resumeOpenEntry(
         startTime: timerState.startTime ?? Date.now(),
       });
     }
+
+    // A restored/endless entry may belong to a previous local day. Split it
+    // immediately rather than waiting for the 30 s monitor's first tick.
+    await checkRunningTimerDayRollover();
 
     return { success: true };
   } catch (error: any) {
@@ -186,6 +212,223 @@ export function getTimerState() {
 }
 
 /**
+ * Split a stopped wall-clock range into one segment per local calendar day.
+ * `start` is inclusive and `end` is exclusive-ish (23:59:59 is used as the
+ * last stored second of an intermediate day). Zero-length segments are
+ * omitted.
+ */
+function buildDailySegments(
+  start: Date,
+  end: Date,
+): Array<{ date: string; startTime: string; endTime: string }> {
+  const segments: Array<{ date: string; startTime: string; endTime: string }> =
+    [];
+  let day = localMidnight(start);
+  const lastDay = localMidnight(end);
+
+  while (day.getTime() <= lastDay.getTime()) {
+    const segmentStart = start.getTime() > day.getTime() ? start : day;
+    const dayEnd = endOfLocalDay(day);
+    const segmentEnd = dayEnd.getTime() > end.getTime() ? end : dayEnd;
+
+    const startTime = formatLocalTime(segmentStart);
+    const endTime = formatLocalTime(segmentEnd);
+    // Compare the stored (second-precision) values too: a sub-second segment
+    // at midnight would otherwise be written as 00:00:00 → 00:00:00.
+    if (
+      segmentEnd.getTime() > segmentStart.getTime() &&
+      startTime !== endTime
+    ) {
+      segments.push({
+        date: formatLocalDate(segmentStart),
+        startTime,
+        endTime,
+      });
+    }
+
+    day = nextLocalMidnight(day);
+  }
+
+  return segments;
+}
+
+/**
+ * Close an entry whose open range crosses local midnight. The existing row
+ * keeps the first day (and any Jira worklog id), new rows are created for the
+ * remaining days. Only the first row keeps a worklog id; every new row is
+ * dirty so it becomes its own worklog on the next sync.
+ */
+async function closeEntryAcrossDays(
+  entry: TimeEntry,
+  start: Date,
+  end: Date,
+  note?: string,
+): Promise<void> {
+  if (end.getTime() <= start.getTime()) {
+    await dbService.updateTimeEntry(entry.id, {
+      endTime: formatLocalTime(end),
+      ...(note !== undefined ? { note } : {}),
+      isDirty: true,
+    });
+    return;
+  }
+
+  const segments = buildDailySegments(start, end);
+  if (segments.length === 0) {
+    await dbService.updateTimeEntry(entry.id, {
+      endTime: formatLocalTime(end),
+      ...(note !== undefined ? { note } : {}),
+      isDirty: true,
+    });
+    return;
+  }
+
+  const first = segments[0];
+  await dbService.updateTimeEntry(entry.id, {
+    date: first.date,
+    startTime: first.startTime,
+    endTime: first.endTime,
+    isDirty: true,
+    ...(note !== undefined && segments.length === 1 ? { note } : {}),
+  });
+
+  for (let index = 1; index < segments.length; index++) {
+    const segment = segments[index];
+    await dbService.createTimeEntry({
+      id: randomUUID(),
+      issueId: entry.issueId,
+      date: segment.date,
+      startTime: segment.startTime,
+      endTime: segment.endTime,
+      note:
+        note !== undefined && index === segments.length - 1 ? note : "",
+      jiraWorklogId: null,
+      isDirty: true,
+    });
+  }
+}
+
+/**
+ * If the running entry belongs to a previous local day, close it at 23:59:59
+ * and create a new open entry for each following day. The final created entry
+ * is today's open entry, so the timer keeps running with a date that matches
+ * the wall clock. Returns true when a rollover happened.
+ */
+async function performDayRollover(
+  getTimerWindow: WindowGetter | null,
+  getMainWindow: WindowGetter | null,
+): Promise<boolean> {
+  if (!timerState.isRunning || !timerState.entryId) return false;
+
+  const entry = await dbService.getTimeEntry(timerState.entryId);
+  if (!entry || entry.endTime) return false;
+
+  const now = new Date();
+  const today = formatLocalDate(now);
+  if (entry.date >= today) return false;
+
+  const startDate = parseLocalDate(entry.date);
+  if (!startDate) {
+    logger.warn(
+      `Cannot roll over timer entry ${entry.id}: invalid date "${entry.date}"`,
+    );
+    return false;
+  }
+
+  // Close the entry that still belongs to the previous day.
+  await dbService.updateTimeEntry(entry.id, {
+    endTime: "23:59:59",
+    isDirty: true,
+  });
+
+  // Create full-day entries for every missed day between the old entry and
+  // today. The loop is deliberately bounded by today's local midnight; a
+  // clock jump far into the future therefore cannot loop forever.
+  const todayMidnight = localMidnight(now);
+  let cursor = addLocalDays(startDate, 1);
+  while (cursor.getTime() < todayMidnight.getTime()) {
+    await dbService.createTimeEntry({
+      id: randomUUID(),
+      issueId: entry.issueId,
+      date: formatLocalDate(cursor),
+      startTime: "00:00:00",
+      endTime: "23:59:59",
+      note: "",
+      jiraWorklogId: null,
+      isDirty: true,
+    });
+    cursor = addLocalDays(cursor, 1);
+  }
+
+  // Today's entry starts at local midnight and stays open.
+  const newEntryId = randomUUID();
+  await dbService.createTimeEntry({
+    id: newEntryId,
+    issueId: entry.issueId,
+    date: today,
+    startTime: "00:00:00",
+    endTime: null,
+    note: entry.note || "",
+    jiraWorklogId: null,
+    isDirty: true,
+  });
+
+  timerState.entryId = newEntryId;
+  timerState.issueId = entry.issueId;
+  timerState.initialStartTime = Math.max(
+    timerState.initialStartTime ?? todayMidnight.getTime(),
+    todayMidnight.getTime(),
+  );
+  if (!timerState.isPaused && timerState.startTime === null) {
+    timerState.startTime = Date.now();
+  }
+
+  broadcastTimerState(
+    getTimerWindow?.() ?? null,
+    getMainWindow?.() ?? null,
+  );
+  logger.info(
+    `Timer rolled over from ${entry.date} to ${today} (new entry ${newEntryId})`,
+  );
+  return true;
+}
+
+/**
+ * Main-process midnight rollover check. Safe to call from the 30 s monitor
+ * and from timer:stop; concurrent calls share a single in-flight run so a
+ * rollover cannot create duplicate entries.
+ */
+export function checkRunningTimerDayRollover(
+  getTimerWindow?: WindowGetter,
+  getMainWindow?: WindowGetter,
+): Promise<boolean> {
+  if (rolloverInFlight) return rolloverInFlight;
+
+  rolloverInFlight = performDayRollover(
+    getTimerWindow ?? timerWindowGetter,
+    getMainWindow ?? mainWindowGetter,
+  )
+    .catch((error: unknown) => {
+      logger.error("Failed to check timer day rollover:", error);
+      return false;
+    })
+    .finally(() => {
+      rolloverInFlight = null;
+    });
+
+  return rolloverInFlight;
+}
+
+/** Start the periodic rollover check. Idempotent. */
+export function startTimerRolloverMonitor(): void {
+  if (rolloverMonitor) return;
+  rolloverMonitor = setInterval(() => {
+    void checkRunningTimerDayRollover();
+  }, 30_000);
+  rolloverMonitor.unref();
+}
+
+/**
  * Register all timer-related IPC handlers.
  * Pass in getters for the timer and main windows so we can push state updates.
  */
@@ -193,6 +436,10 @@ export function registerTimerHandlers(
   getTimerWindow: () => BrowserWindow | null,
   getMainWindow: () => BrowserWindow | null,
 ) {
+  timerWindowGetter = getTimerWindow;
+  mainWindowGetter = getMainWindow;
+  startTimerRolloverMonitor();
+
   // Start tracking time for an issue
   ipcMain.handle("timer:start", async (_, issueId: string) => {
     try {
@@ -203,12 +450,24 @@ export function registerTimerHandlers(
         };
       }
 
-      // If paused, resume instead
+      // If paused, resume the existing timer. Starting an issue while a
+      // paused timer belongs to a different issue must not silently steal
+      // the timer from the paused issue.
       if (timerState.isRunning && timerState.isPaused) {
+        if (issueId && issueId !== timerState.issueId) {
+          return {
+            success: false,
+            error:
+              "A paused timer is already running for another issue. Stop it first.",
+          };
+        }
+
         timerState.isPaused = false;
         timerState.pauseStart = null;
-        // Adjust start time to account for pause duration
-        // This keeps the elapsed calculation simple
+        // pausedElapsed holds the time accumulated before the pause. The
+        // clock has to restart now, otherwise elapsed stays frozen forever.
+        timerState.startTime = Date.now();
+
         broadcastTimerState(getTimerWindow(), getMainWindow());
         return { success: true, data: getTimerState() };
       }
@@ -267,14 +526,24 @@ export function registerTimerHandlers(
         return { success: false, error: "No timer is running." };
       }
 
+      // Catch a midnight crossing before stopping, even if the 30 s monitor
+      // has not ticked yet. This updates timerState.entryId to today's entry.
+      const wasRolledOver = await checkRunningTimerDayRollover(
+        getTimerWindow,
+        getMainWindow,
+      );
+
       const entryId = timerState.entryId;
       const issueId = timerState.issueId;
       const endTimestamp = stopTime || Date.now();
       let elapsedSeconds = getTimerStateElapsed(endTimestamp);
 
-      // Check settings for 15-min rounding
+      // Check settings for 15-min rounding. Rounding a multi-day range would
+      // move already-closed rollover entries, so only apply it to a timer
+      // whose current entry still belongs to the stop day.
       const appSettings = await dbService.getSetting("app");
-      const roundTo15Min = appSettings?.roundTo15Min === true;
+      const roundTo15Min =
+        appSettings?.roundTo15Min === true && !wasRolledOver;
 
       let roundedStart = timerState.initialStartTime || timerState.startTime || Date.now();
       let roundedEnd = endTimestamp;
@@ -297,13 +566,35 @@ export function registerTimerHandlers(
       }
 
       if (entryId) {
-        // Close the time entry and set note if provided
-        await dbService.updateTimeEntry(entryId, {
-          startTime: roundTo15Min ? formatLocalTime(new Date(roundedStart)) : undefined,
-          endTime: formatLocalTime(new Date(roundedEnd)),
-          date: roundTo15Min ? formatLocalDate(new Date(roundedStart)) : undefined,
-          ...(note !== undefined ? { note } : {}),
-        });
+        const currentEntry = await dbService.getTimeEntry(entryId);
+        const stopDate = formatLocalDate(new Date(roundedEnd));
+
+        // Fallback split: if the open entry belongs to an earlier local day,
+        // close it per day so every stored row's date matches its segment.
+        // The first segment keeps the existing row (and worklog id).
+        if (currentEntry && currentEntry.date < stopDate) {
+          const entryStart = parseLocalDateTime(
+            currentEntry.date,
+            currentEntry.startTime,
+          );
+          const splitStart = entryStart
+            ? Math.min(roundedStart, entryStart.getTime())
+            : roundedStart;
+          await closeEntryAcrossDays(
+            currentEntry,
+            new Date(splitStart),
+            new Date(roundedEnd),
+            note,
+          );
+        } else {
+          // Close the time entry and set note if provided
+          await dbService.updateTimeEntry(entryId, {
+            startTime: roundTo15Min ? formatLocalTime(new Date(roundedStart)) : undefined,
+            endTime: formatLocalTime(new Date(roundedEnd)),
+            date: roundTo15Min ? formatLocalDate(new Date(roundedStart)) : undefined,
+            ...(note !== undefined ? { note } : {}),
+          });
+        }
       }
 
       // Update issue time spent and mark as not running
@@ -313,12 +604,11 @@ export function registerTimerHandlers(
           await dbService.updateIssue(issueId, {
             timeSpent: (issue.timeSpent || 0) + elapsedSeconds,
             isRunning: false,
-            startTime: undefined,
+            startTime: null,
           });
         }
       }
 
-      const lastState = { ...timerState };
       timerState = {
         issueId: null,
         entryId: null,
@@ -487,6 +777,12 @@ export function registerTimerHandlers(
 
   ipcMain.handle("timer:delete-entry", async (_, id: string) => {
     try {
+      if (timerState.isRunning && timerState.entryId === id) {
+        return {
+          success: false,
+          error: "Stop the timer before deleting this entry.",
+        };
+      }
       await dbService.deleteTimeEntry(id);
       return { success: true };
     } catch (error: any) {

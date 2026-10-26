@@ -19,6 +19,13 @@ const LAUNCH_ARGS = [ELECTRON_MAIN];
 let electronApp: ElectronApplication;
 let window: Page;
 
+/** Current time-entry rows are grid divs inside app-time-entry-list (no <table>). */
+const timeEntryRow = (text: string) =>
+  window
+    .locator("app-time-entry-list div.grid")
+    .filter({ hasText: text })
+    .first();
+
 test.beforeAll(async () => {
   electronApp = await electron.launch({
     args: LAUNCH_ARGS,
@@ -296,8 +303,10 @@ test("create, edit, and save a time entry", async () => {
   await searchInput.fill("E2E Manual Task");
   await window.waitForTimeout(500);
 
-  // Click the "Create & start local task" dropdown button
-  const createBtn = window.locator("app-search-bar button", { hasText: /create & start local task/i }).first();
+  // Click the "Create local task" action in the dropdown
+  const createBtn = window
+    .locator("app-search-bar button", { hasText: /create .*local task/i })
+    .first();
   await expect(createBtn).toBeVisible();
   await createBtn.click();
   await window.waitForTimeout(300);
@@ -312,10 +321,10 @@ test("create, edit, and save a time entry", async () => {
   await confirmBtn.click();
   await window.waitForTimeout(1000);
 
-  // Verify the row appears in the table
-  const tableRow = window.locator("app-time-entry-list table tbody tr", { hasText: "E2E Manual Task" }).first();
+  // Verify the row appears in the list
+  const tableRow = timeEntryRow("E2E Manual Task");
   await expect(tableRow).toBeVisible();
-  await expect(tableRow.locator("td", { hasText: "Initial E2E Note" })).toBeVisible();
+  await expect(tableRow).toContainText("Initial E2E Note");
 
   // Click "Edit entry" button
   const editBtn = tableRow.locator("button[aria-label='Edit entry']").first();
@@ -340,9 +349,9 @@ test("create, edit, and save a time entry", async () => {
   await saveBtn.click();
   await window.waitForTimeout(1000);
 
-  // Verify that the table updates with the new note and correct duration (09:15 to 10:30 is 1h 15m)
-  await expect(tableRow.locator("td", { hasText: "Updated E2E Note" })).toBeVisible();
-  await expect(tableRow.locator("td", { hasText: "1h 15m" })).toBeVisible();
+  // Verify that the list updates with the new note and correct duration (09:15 to 10:30 is 1h 15m)
+  await expect(tableRow).toContainText("Updated E2E Note");
+  await expect(tableRow).toContainText("1h 15m");
 });
 
 // ─── Test 10: Stop timer from notchbar creates worklog entry ────────────────
@@ -370,8 +379,10 @@ test("stop timer from notchbar creates a worklog entry on the dashboard", async 
   await searchInput.fill("E2E Notchbar Task");
   await window.waitForTimeout(500);
 
-  // Click "Create & start local task" to start the timer
-  const createBtn = window.locator("app-search-bar button", { hasText: /create & start local task/i }).first();
+  // Click the create action to start the timer
+  const createBtn = window
+    .locator("app-search-bar button", { hasText: /create .*local task/i })
+    .first();
   if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await createBtn.click();
     await window.waitForTimeout(1500);
@@ -418,19 +429,26 @@ test("stop timer from notchbar creates a worklog entry on the dashboard", async 
         await timerPage.waitForTimeout(1000);
       }
     }
+
+    // Restore the main window from the overlay before interacting with it.
+    const expandBtn = timerPage
+      .locator("app-notch-timer button[aria-label='Expand']")
+      .first();
+    if (await expandBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await expandBtn.click();
+      await window.waitForTimeout(500);
+    }
   }
 
   // Switch back to main window, navigate to Dashboard to see the entry
   await window.locator("app-side-nav").locator("text=Dashboard").click();
   await window.waitForTimeout(1000);
 
-  // Verify the worklog entry appears in the time-entry-list table
-  const entryRow = window.locator("app-time-entry-list table tbody tr", {
-    hasText: "E2E Notchbar Task",
-  }).first();
+  // Verify the worklog entry appears in the time-entry list
+  const entryRow = timeEntryRow("E2E Notchbar Task");
 
   await expect(entryRow).toBeVisible({ timeout: 5000 });
-  await expect(entryRow.locator("td", { hasText: "Stopped via notchbar timer window" })).toBeVisible();
+  await expect(entryRow).toContainText("Stopped via notchbar timer window");
 
   // Restore setting back to 'Draggable'
   await window.locator("app-side-nav").locator("text=Settings").click();
@@ -462,8 +480,10 @@ test("editing a worklog entry and saving correctly closes the dialog", async () 
   await searchInput.fill("E2E Dialog Close Task");
   await window.waitForTimeout(500);
 
-  // Click the "Create & start local task" action
-  const createBtn = window.locator("app-search-bar button", { hasText: /create & start local task/i }).first();
+  // Click the create action
+  const createBtn = window
+    .locator("app-search-bar button", { hasText: /create .*local task/i })
+    .first();
   if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await createBtn.click();
     await window.waitForTimeout(300);
@@ -484,10 +504,8 @@ test("editing a worklog entry and saving correctly closes the dialog", async () 
   await createEntryBtn.click();
   await window.waitForTimeout(1000);
 
-  // Verify the entry row appears in the table
-  const tableRow = window.locator("app-time-entry-list table tbody tr", {
-    hasText: "E2E Dialog Close Task",
-  }).first();
+  // Verify the entry row appears in the list
+  const tableRow = timeEntryRow("E2E Dialog Close Task");
   await expect(tableRow).toBeVisible();
 
   // Click the "Edit entry" button on the row

@@ -14,6 +14,11 @@ import { SearchBarComponent, type SearchResult } from '../common/search-bar.comp
 import { DatabaseService } from '../../services/database.service';
 import type { TimeEntry } from '../../models/time-entry';
 import type { Issue } from '../../models/issue';
+import {
+  entryDurationSeconds,
+  formatDurationSeconds,
+  formatTimeHm,
+} from '../../utils/time';
 
 /** "HH:MM[:SS]" → minutes since local midnight (float). */
 function toMinutes(time: string): number {
@@ -37,8 +42,10 @@ function fmtTime(minutes: number): string {
     <app-dialog
       [(isOpen)]="isOpen"
       title="Split Time Entry"
-      confirmLabel="Split"
-      [confirmDisabled]="!isValid()"
+      [confirmLabel]="saving() ? 'Splitting…' : 'Split'"
+      [confirmDisabled]="!isValid() || saving()"
+      [cancelLabel]="saving() ? '' : 'Cancel'"
+      [closable]="!saving()"
       (confirm)="onConfirm()"
     >
       <div class="space-y-4">
@@ -46,7 +53,7 @@ function fmtTime(minutes: number): string {
         <div class="rounded-xl border border-border/20 bg-muted/10 px-4 py-3">
           <div class="text-sm font-semibold text-foreground/90">{{ issueName() }}</div>
           <div class="mt-0.5 text-xs font-mono text-muted-foreground">
-            {{ entry()?.startTime }} - {{ entry()?.endTime ?? 'now' }} · {{ durationLabel() }}
+            {{ timeRangeLabel() }} · {{ durationLabel() }}
           </div>
         </div>
 
@@ -180,7 +187,10 @@ function fmtTime(minutes: number): string {
         }
 
         @if (errorMessage()) {
-          <div class="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-2.5 text-xs text-destructive-foreground">
+          <div
+            class="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-2.5 text-xs font-medium text-destructive"
+            role="alert"
+          >
             {{ errorMessage() }}
           </div>
         }
@@ -211,6 +221,7 @@ export class TimeEntrySplitDialogComponent {
   readonly selectedIssueQuery = signal('');
   readonly note = signal('');
   readonly errorMessage = signal('');
+  readonly saving = signal(false);
 
   /** The entry's effective end: stored end, or "now" while it is running. */
   readonly effectiveEnd = computed(() => {
@@ -234,11 +245,16 @@ export class TimeEntrySplitDialogComponent {
     const e = this.entry();
     if (!e) return '';
     if (!e.endTime) return 'running';
-    const diffMin = Math.round(toMinutes(e.endTime) - toMinutes(e.startTime));
-    if (diffMin <= 0) return '< 1m';
-    const h = Math.floor(diffMin / 60);
-    const m = diffMin % 60;
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    return formatDurationSeconds(entryDurationSeconds(e));
+  });
+
+  /** Stored start/end as HH:mm (or "now" for a running entry). */
+  readonly timeRangeLabel = computed(() => {
+    const e = this.entry();
+    if (!e) return '';
+    const start = formatTimeHm(e.startTime);
+    const end = e.endTime ? formatTimeHm(e.endTime) : 'now';
+    return `${start} - ${end}`;
   });
 
   readonly selectedIssueLabel = computed(() => {
@@ -304,6 +320,7 @@ export class TimeEntrySplitDialogComponent {
     this.selectedIssueQuery.set('');
     this.note.set(e.note ?? '');
     this.errorMessage.set('');
+    this.saving.set(false);
   }
 
   async handleIssueSelection(result: SearchResult): Promise<void> {
@@ -347,9 +364,10 @@ export class TimeEntrySplitDialogComponent {
 
   async onConfirm(): Promise<void> {
     const e = this.entry();
-    if (!e || !this.isValid()) return;
+    if (!e || !this.isValid() || this.saving()) return;
 
     const target = this.selectedIssueId() || undefined;
+    this.saving.set(true);
     this.errorMessage.set('');
     try {
       if (this.mode() === 'range') {
@@ -361,6 +379,8 @@ export class TimeEntrySplitDialogComponent {
       this.isOpen.set(false);
     } catch (err: any) {
       this.errorMessage.set(err?.message ?? 'Failed to split the entry');
+    } finally {
+      this.saving.set(false);
     }
   }
 }

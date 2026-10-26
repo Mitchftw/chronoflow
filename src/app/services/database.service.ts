@@ -14,6 +14,7 @@ import type {
 } from '../models/jira-connection';
 import { format } from 'date-fns';
 import { formatJiraLocalIso, parseLocalDateTime } from '../utils/datetime';
+import { entryDurationMs, entryDurationSeconds } from '../utils/time';
 
 @Injectable({ providedIn: 'root' })
 export class DatabaseService {
@@ -197,7 +198,7 @@ export class DatabaseService {
         if (entry.jiraWorklogId && entry.isDirty && entry.endTime) {
           const issue = this.getIssueById(entry.issueId);
           if (issue?.jiraIssueKey) {
-            const durationSeconds = Math.floor(this.getEntryDuration(entry) / 1000);
+            const durationSeconds = entryDurationSeconds(entry);
             if (durationSeconds > 0) {
               const res: any = await this.ipc.jiraUpdateWorklog({
                 issueKey: issue.jiraIssueKey,
@@ -229,7 +230,7 @@ export class DatabaseService {
         if (!entry.jiraWorklogId && entry.endTime) {
           const issue = this.getIssueById(entry.issueId);
           if (issue?.jiraIssueKey) {
-            const durationSeconds = Math.floor(this.getEntryDuration(entry) / 1000);
+            const durationSeconds = entryDurationSeconds(entry);
             if (durationSeconds > 0) {
               const res: any = await this.ipc.jiraSyncWorklog({
                 issueKey: issue.jiraIssueKey,
@@ -293,21 +294,45 @@ export class DatabaseService {
         }
       }
 
-      // 2. Load worklogs from Jira for this date
-      const jiraWorklogs = await this.ipc.jiraGetWorklogsForDate(date);
-      const localEntries = this.getTimeEntriesForDate(date);
-      const jiraWorklogIds = new Set(jiraWorklogs.map((log) => log.id));
+      // 2. Load worklogs from Jira for this date. A failed request must not
+      // be mistaken for "Jira has no worklogs" — that used to delete every
+      // local worklog for the day.
+      const worklogsResult = await this.ipc.jiraGetWorklogsForDate(date);
+      if (!worklogsResult.success) {
+        throw new Error(
+          worklogsResult.error ?? 'Failed to load worklogs from Jira',
+        );
+      }
 
-      // Delete local entries that were deleted on Jira (matching jiraWorklogId exists but is not in current Jira worklogs)
-      for (const entry of localEntries) {
-        if (entry.jiraWorklogId && !jiraWorklogIds.has(entry.jiraWorklogId)) {
-          await this.deleteTimeEntry(entry.id);
+      const jiraWorklogs = worklogsResult.worklogs;
+      const localEntries = this.getTimeEntriesForDate(date);
+      const jiraWorklogIds = new Set(
+        jiraWorklogs.map((log) => String(log.id)),
+      );
+
+      // Delete local entries that were deleted on Jira only when the Jira
+      // fetch was complete. On a partial fetch a missing id may simply mean
+      // one issue failed to load, so deleting would lose local data.
+      if (worklogsResult.complete) {
+        for (const entry of localEntries) {
+          if (
+            entry.jiraWorklogId &&
+            !jiraWorklogIds.has(entry.jiraWorklogId)
+          ) {
+            await this.deleteTimeEntry(entry.id);
+          }
         }
+      } else {
+        console.warn(
+          '[jira] worklog fetch was incomplete; skipping local worklog deletion',
+        );
       }
 
       // Create or update local entries matching Jira worklogs
       for (const log of jiraWorklogs) {
-        const localMatch = localEntries.find((e) => e.jiraWorklogId === log.id);
+        const localMatch = localEntries.find(
+          (e) => e.jiraWorklogId && String(e.jiraWorklogId) === String(log.id),
+        );
         let issue = this._issues().find((i) => i.jiraIssueKey === log.issueKey);
         if (!issue) {
           issue = await this.createIssue({
@@ -340,7 +365,7 @@ export class DatabaseService {
           }
           loadedWorklogs++;
         } else {
-          const durationSeconds = Math.floor(this.getEntryDuration(localMatch) / 1000);
+          const durationSeconds = entryDurationSeconds(localMatch);
           if (
             localMatch.note !== (log.comment || '') ||
             durationSeconds !== log.timeSpentSeconds ||
@@ -399,10 +424,8 @@ export class DatabaseService {
     );
   }
 
+  /** Duration in milliseconds, honoring seconds and overnight entries. */
   getEntryDuration(entry: TimeEntry): number {
-    if (!entry.endTime) return 0;
-    const [startH, startM] = entry.startTime.split(':').map(Number);
-    const [endH, endM] = entry.endTime.split(':').map(Number);
-    return (endH * 60 + endM - (startH * 60 + startM)) * 60 * 1000;
+    return entryDurationMs(entry);
   }
 }

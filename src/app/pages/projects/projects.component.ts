@@ -1,9 +1,12 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  ElementRef,
+  HostListener,
   inject,
   signal,
-  computed,
+  effect,
+  viewChild,
 } from '@angular/core';
 import { DatabaseService } from '../../services/database.service';
 import { ProjectCardComponent } from '../../components/projects/project-card.component';
@@ -71,25 +74,33 @@ import type { Project } from '../../models/project';
     @if (showDeleteConfirm()) {
       <div
         class="fixed inset-0 z-50 flex items-center justify-center bg-background/30 backdrop-blur-md"
-        (click)="showDeleteConfirm.set(false)"
+        (click)="closeDeleteConfirm()"
       >
         <div
           class="w-full max-w-sm rounded-2xl border border-border/45 bg-card/95 p-6 shadow-2xl transition-all duration-300 relative"
           role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="delete-project-title"
+          aria-describedby="delete-project-description"
           (click)="$event.stopPropagation()"
+          (keydown.tab)="trapDeleteFocus($any($event))"
         >
-          <h3 class="text-sm font-bold text-muted-foreground pb-2 border-b border-border/20">Delete Project?</h3>
-          <p class="mt-3 text-xs text-muted-foreground leading-relaxed">
+          <h3 id="delete-project-title" class="text-sm font-bold text-muted-foreground pb-2 border-b border-border/20">Delete Project?</h3>
+          <p id="delete-project-description" class="mt-3 text-xs text-muted-foreground leading-relaxed">
             This action cannot be undone. All associated issues will remain but become unlinked.
           </p>
           <div class="mt-6 flex justify-end gap-2.5 select-none">
             <button
+              #cancelDeleteButton
+              type="button"
               class="rounded-xl border border-border/50 bg-secondary/35 px-5 py-2.5 text-xs font-bold text-foreground/90 transition-all duration-200 hover:bg-secondary/75 cursor-pointer"
-              (click)="showDeleteConfirm.set(false)"
+              (click)="closeDeleteConfirm()"
             >
               Cancel
             </button>
             <button
+              #confirmDeleteButton
+              type="button"
               class="rounded-xl bg-red-500 px-5 py-2.5 text-xs font-bold text-white transition-all duration-300 hover:bg-red-600 shadow-md shadow-red-500/20 active:scale-[0.98] cursor-pointer"
               (click)="executeDelete()"
             >
@@ -109,8 +120,45 @@ export class ProjectsComponent {
   editingProject = signal<Project | null>(null);
   pendingDeleteId = signal<string | null>(null);
 
+  readonly cancelDeleteButton =
+    viewChild<ElementRef<HTMLButtonElement>>('cancelDeleteButton');
+  readonly confirmDeleteButton =
+    viewChild<ElementRef<HTMLButtonElement>>('confirmDeleteButton');
+
+  /** Element to return focus to after the delete confirmation closes. */
+  private deleteFocusReturn: HTMLElement | null = null;
+
   constructor() {
     this.db.reloadProjects();
+
+    // Focus the safe action when the confirmation appears.
+    effect(() => {
+      if (this.showDeleteConfirm()) {
+        this.cancelDeleteButton()?.nativeElement.focus();
+      }
+    });
+  }
+
+  @HostListener('document:keydown.escape')
+  onDeleteEscape(): void {
+    if (this.showDeleteConfirm()) {
+      this.closeDeleteConfirm();
+    }
+  }
+
+  /** Keep Tab focus inside the two-button confirmation. */
+  trapDeleteFocus(event: KeyboardEvent): void {
+    const cancel = this.cancelDeleteButton()?.nativeElement;
+    const confirm = this.confirmDeleteButton()?.nativeElement;
+    if (!cancel || !confirm) return;
+    const active = document.activeElement;
+    if (event.shiftKey && active === cancel) {
+      event.preventDefault();
+      confirm.focus();
+    } else if (!event.shiftKey && active === confirm) {
+      event.preventDefault();
+      cancel.focus();
+    }
   }
 
   openCreateDialog(): void {
@@ -143,8 +191,22 @@ export class ProjectsComponent {
   }
 
   confirmDelete(id: string): void {
+    this.deleteFocusReturn =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     this.pendingDeleteId.set(id);
     this.showDeleteConfirm.set(true);
+  }
+
+  closeDeleteConfirm(): void {
+    this.showDeleteConfirm.set(false);
+    this.pendingDeleteId.set(null);
+    const focusReturn = this.deleteFocusReturn;
+    this.deleteFocusReturn = null;
+    if (focusReturn?.isConnected) {
+      setTimeout(() => focusReturn.focus());
+    }
   }
 
   async executeDelete(): Promise<void> {
@@ -155,8 +217,7 @@ export class ProjectsComponent {
     } catch (err) {
       console.error('Failed to delete project', err);
     } finally {
-      this.showDeleteConfirm.set(false);
-      this.pendingDeleteId.set(null);
+      this.closeDeleteConfirm();
     }
   }
 }

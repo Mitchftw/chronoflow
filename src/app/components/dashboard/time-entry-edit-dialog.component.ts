@@ -4,6 +4,7 @@ import { SearchBarComponent, type SearchResult } from '../common/search-bar.comp
 import { DatabaseService } from '../../services/database.service';
 import type { TimeEntry } from '../../models/time-entry';
 import type { Issue } from '../../models/issue';
+import { formatTimeHm, parseLocalDate, toLocalDate } from '../../utils/time';
 
 @Component({
   selector: 'app-time-entry-edit-dialog',
@@ -14,8 +15,10 @@ import type { Issue } from '../../models/issue';
     <app-dialog
       [(isOpen)]="isOpen"
       [title]="entry() ? 'Edit Time Entry' : 'New Time Entry'"
-      [confirmLabel]="entry() ? 'Save Changes' : 'Create Entry'"
-      [confirmDisabled]="!isValid()"
+      [confirmLabel]="saving() ? 'Saving…' : (entry() ? 'Save Changes' : 'Create Entry')"
+      [confirmDisabled]="!isValid() || saving()"
+      [cancelLabel]="saving() ? '' : 'Cancel'"
+      [closable]="!saving()"
       (confirm)="onConfirm()"
       (close)="onClose()"
     >
@@ -87,6 +90,12 @@ import type { Issue } from '../../models/issue';
           </div>
         </div>
 
+        @if (crossesMidnight()) {
+          <p class="text-xs text-muted-foreground">
+            The end time is before the start time, so this entry will be treated as crossing midnight.
+          </p>
+        }
+
         <!-- Description / Note -->
         <div>
           <label for="edit-entry-note" class="mb-2 block text-xs font-bold text-muted-foreground">
@@ -101,6 +110,15 @@ import type { Issue } from '../../models/issue';
             class="w-full rounded-xl border border-border/40 bg-background/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner resize-none"
           ></textarea>
         </div>
+
+        @if (errorMessage()) {
+          <div
+            class="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-2.5 text-xs font-medium text-destructive"
+            role="alert"
+          >
+            {{ errorMessage() }}
+          </div>
+        }
       </div>
     </app-dialog>
   `,
@@ -137,11 +155,13 @@ export class TimeEntryEditDialogComponent {
   readonly selectedIssueId = signal('');
   readonly selectedIssueQuery = signal('');
 
+  /** Save state + readable failure message. */
+  readonly saving = signal(false);
+  readonly errorMessage = signal('');
+
   /** Strip seconds from a "HH:MM[:SS]" time so manual editing stays at minute precision. */
   private toHm(time: string | null | undefined): string {
-    if (!time) return '';
-    const [h, m] = time.split(':');
-    return h && m ? `${h}:${m}` : time;
+    return formatTimeHm(time);
   }
 
   /** Display Name for associated issue (in edit mode) */
@@ -160,9 +180,21 @@ export class TimeEntryEditDialogComponent {
     const end = (this.endTime() ?? '').trim();
     const hasIssue = this.entry() ? true : !!this.selectedIssueId();
     if (!dateVal || !start || !hasIssue) return false;
-    // If end time is set, it must not be before start time (equal is valid for 0-duration Jira worklogs)
-    if (end && end < start) return false;
+    if (!parseLocalDate(dateVal)) return false;
+    if (!this.isValidTime(start)) return false;
+    if (end && !this.isValidTime(end)) return false;
     return true;
+  });
+
+  /** An end before the start is a legitimate overnight entry. */
+  readonly crossesMidnight = computed(() => {
+    const start = (this.startTime() ?? '').trim();
+    const end = (this.endTime() ?? '').trim();
+    return (
+      this.isValidTime(start) &&
+      this.isValidTime(end) &&
+      end < start
+    );
   });
 
   constructor() {
@@ -170,10 +202,11 @@ export class TimeEntryEditDialogComponent {
     effect(() => {
       const activeEntry = this.entry();
       if (activeEntry) {
-        this.entryDate.set(activeEntry.date || this.date() || new Date().toISOString().slice(0, 10));
+        this.entryDate.set(activeEntry.date || this.date() || toLocalDate());
         this.startTime.set(this.toHm(activeEntry.startTime));
         this.endTime.set(this.toHm(activeEntry.endTime));
         this.note.set(activeEntry.note ?? '');
+        if (this.isOpen()) this.errorMessage.set('');
       }
     });
 
@@ -183,14 +216,15 @@ export class TimeEntryEditDialogComponent {
         const now = new Date();
         const pad = (n: number) => String(n).padStart(2, '0');
         const prefill = this.prefill();
-        const defaultStart = prefill?.startTime || `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-        const defaultDate = this.date() || `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        const defaultStart = this.toHm(prefill?.startTime) || `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        const defaultDate = this.date() || toLocalDate(now);
         this.entryDate.set(defaultDate);
         this.startTime.set(defaultStart);
-        this.endTime.set(prefill?.endTime ?? '');
+        this.endTime.set(this.toHm(prefill?.endTime));
         this.note.set('');
         this.selectedIssueId.set(prefill?.issueId ?? '');
         this.selectedIssueQuery.set('');
+        this.errorMessage.set('');
         if (prefill?.issueId) {
           const issue = this.issues().find((i) => i.id === prefill.issueId);
           if (issue) {
@@ -236,13 +270,16 @@ export class TimeEntryEditDialogComponent {
   }
 
   async onConfirm(): Promise<void> {
-    if (!this.isValid()) return;
+    if (!this.isValid() || this.saving()) return;
 
     const activeEntry = this.entry();
-    const targetDate = (this.entryDate() ?? '').trim() || this.date() || new Date().toISOString().slice(0, 10);
+    const targetDate = (this.entryDate() ?? '').trim() || this.date() || toLocalDate();
     const start = (this.startTime() ?? '').trim();
     const end = (this.endTime() ?? '').trim() || null;
     const currentNote = (this.note() ?? '').trim();
+
+    this.saving.set(true);
+    this.errorMessage.set('');
 
     try {
       if (activeEntry) {
@@ -254,13 +291,12 @@ export class TimeEntryEditDialogComponent {
           note: currentNote,
           isDirty: true,
         });
-        if (updated) {
-          this.saved.emit(updated);
-        }
+        if (!updated) throw new Error('The entry could not be saved.');
+        this.saved.emit(updated);
       } else {
         // Create mode
         const issueId = this.selectedIssueId();
-        if (!issueId) return;
+        if (!issueId) throw new Error('Select an issue before saving.');
 
         const newEntry = await this.db.createTimeEntry({
           issueId,
@@ -270,18 +306,37 @@ export class TimeEntryEditDialogComponent {
           note: currentNote,
           isDirty: true,
         });
-        if (newEntry) {
-          this.saved.emit(newEntry);
-        }
+        if (!newEntry) throw new Error('The entry could not be created.');
+        this.saved.emit(newEntry);
       }
+
+      // Only dismiss after a successful save; failures stay on screen with
+      // their message so the user can correct the input.
+      this.isOpen.set(false);
     } catch (err) {
       console.error('Failed to save time entry:', err);
+      this.errorMessage.set(this.describeError(err, 'Failed to save the time entry.'));
     } finally {
-      this.isOpen.set(false);
+      this.saving.set(false);
     }
   }
 
   onClose(): void {
     this.dismissed.emit();
+  }
+
+  /** `HH:MM` validation; the time inputs submit minute precision only. */
+  private isValidTime(value: string): boolean {
+    const match = /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(value);
+    if (!match) return false;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+  }
+
+  private describeError(err: unknown, fallback: string): string {
+    if (err instanceof Error && err.message) return err.message;
+    if (typeof err === 'string' && err) return err;
+    return fallback;
   }
 }

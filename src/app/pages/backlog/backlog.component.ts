@@ -7,6 +7,7 @@ import {
   OnInit,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { differenceInCalendarDays } from 'date-fns';
 import { DatabaseService } from '../../services/database.service';
 import { TimerService } from '../../services/timer.service';
 import { JiraService } from '../../services/jira.service';
@@ -151,7 +152,7 @@ import type { BacklogIssue, BacklogProject, BacklogSprint } from '../../../types
 
       <!-- Error -->
       @if (errorMessage()) {
-        <div class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-medium text-red-700 dark:text-red-300 shadow-sm select-none">
+        <div class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-medium text-red-700 dark:text-red-300 shadow-sm">
           <span>{{ errorMessage() }}</span>
           <button
             class="shrink-0 font-semibold text-red-700 dark:text-red-300 hover:underline cursor-pointer"
@@ -163,7 +164,7 @@ import type { BacklogIssue, BacklogProject, BacklogSprint } from '../../../types
       }
 
       @if (notice()) {
-        <p class="mb-5 text-xs text-muted-foreground select-none">{{ notice() }}</p>
+        <p class="mb-5 text-xs text-muted-foreground">{{ notice() }}</p>
       }
 
       <!-- Loading: skeleton rows matching the issue layout -->
@@ -210,7 +211,7 @@ import type { BacklogIssue, BacklogProject, BacklogSprint } from '../../../types
         <div class="space-y-3">
           @for (issue of filteredIssues(); track issue.key) {
             <div
-              class="flex items-center gap-4 rounded-2xl border border-border/40 bg-card/65 px-5 py-4 transition-all duration-300 hover:bg-secondary/45 hover:border-primary/20 hover:shadow-sm select-none"
+              class="flex items-center gap-4 rounded-2xl border border-border/40 bg-card/65 px-5 py-4 transition-all duration-300 hover:bg-secondary/45 hover:border-primary/20 hover:shadow-sm"
               [class]="isRunning(issue) ? 'border-primary/30 bg-primary/[0.02]' : ''"
             >
               <!-- Start timer -->
@@ -316,6 +317,8 @@ export class BacklogComponent implements OnInit {
 
   /** Guards against out-of-order responses when filters change quickly. */
   private requestSeq = 0;
+  /** Separate sequence for project/sprint option loading. */
+  private filterSeq = 0;
 
   readonly hasActiveFilters = computed(
     () =>
@@ -362,7 +365,9 @@ export class BacklogComponent implements OnInit {
 
   async onProjectChange(projectKey: string): Promise<void> {
     this.projectFilter.set(projectKey);
-    await this.loadFilters();
+    const filtersApplied = await this.loadFilters();
+    // A newer project switch owns the sprint cleanup and issue reload.
+    if (!filtersApplied) return;
 
     // The sprint list is scoped to the project; drop a specific sprint that
     // no longer exists rather than silently querying nothing.
@@ -485,29 +490,36 @@ export class BacklogComponent implements OnInit {
 
   formatDate(timestamp: number): string {
     const d = new Date(timestamp);
-    const now = new Date();
-    const diffDays = Math.floor(
-      (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24),
-    );
+    if (Number.isNaN(d.getTime())) return '';
+    // Compare local calendar days, not rolling 24h windows: an update at
+    // 23:50 yesterday must read "Yesterday", not "Today", at 00:10.
+    const diffDays = differenceInCalendarDays(new Date(), d);
 
+    // Future timestamps (clock skew / timezone oddities) read as Today.
     if (diffDays <= 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays}d ago`;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
-  private async loadFilters(): Promise<void> {
+  private async loadFilters(): Promise<boolean> {
+    const seq = ++this.filterSeq;
     try {
       const res = await this.jira.getBacklogFilters({
         projectKey: this.projectFilter() || undefined,
       });
+      // A newer filter request (rapid project switching) owns the result.
+      if (seq !== this.filterSeq) return false;
       if (res.success) {
         this.projects.set(res.projects ?? []);
         this.sprints.set(res.sprints ?? []);
       }
+      return true;
     } catch (err) {
+      if (seq !== this.filterSeq) return false;
       // Filters are optional; the list still works with Current/All sprints.
       console.warn('Failed to load backlog filters', err);
+      return true;
     }
   }
 

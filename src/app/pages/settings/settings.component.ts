@@ -16,15 +16,36 @@ import { IdleDetectionService } from "../../services/idle-detection.service";
 import { IpcService } from "../../services/ipc.service";
 import { DropletStoreComponent } from "../../droplets/droplet-store.component";
 import { PageHeaderComponent } from "../../components/common/page-header.component";
+import { DialogComponent } from "../../components/common/dialog.component";
 import type { JiraConnection, DisplayInfo } from "../../../types";
 
 @Component({
   selector: "app-settings",
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, DropletStoreComponent],
+  imports: [PageHeaderComponent, DropletStoreComponent, DialogComponent],
   host: { class: "block max-w-3xl" },
   template: `
     <app-page-header title="Settings" subtitle="Configure your application preferences" />
+
+    @if (settingsService.saveError(); as saveError) {
+      <div class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-sm">
+        <div class="flex items-center gap-2">
+          <svg class="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <span>{{ saveError }}</span>
+        </div>
+        <button
+          class="text-destructive/60 hover:text-destructive transition-all cursor-pointer"
+          (click)="settingsService.saveError.set(null)"
+          aria-label="Dismiss settings error"
+        >
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    }
 
     <div class="space-y-6">
       <!-- ═══ Droplet Store ═══ -->
@@ -103,7 +124,8 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
           <!-- Notch auto-hide -->
           <div
-            class="flex items-center justify-between gap-3"
+            class="flex items-center justify-between gap-3 transition-opacity"
+            [class.opacity-60]="!isNotchMode()"
           >
             <div>
               <p class="text-sm font-semibold text-foreground/95">
@@ -117,9 +139,12 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             <button
               role="switch"
               [attr.aria-checked]="settings().autoHideNotch"
+              [disabled]="!isNotchMode()"
               (click)="toggleAutoHideNotch()"
-              class="relative inline-flex h-6.5 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+              class="relative inline-flex h-6.5 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed"
               [class]="settings().autoHideNotch ? 'bg-primary' : 'bg-border/60'"
+              [class.opacity-50]="!isNotchMode()"
+              [title]="isNotchMode() ? 'Toggle auto-hide for the notch' : 'Switch Timer Mode to Notch to use this'"
             >
               <span
                 class="pointer-events-none inline-block size-5.5 rounded-full bg-white shadow-md ring-0 transition-transform duration-300"
@@ -130,7 +155,8 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
           <!-- Notch display screen -->
           <div
-            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-opacity"
+            [class.opacity-60]="!isNotchMode()"
           >
             <div>
               <p class="text-sm font-semibold text-foreground/95">
@@ -143,8 +169,10 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             </div>
             <select
               [value]="notchDisplayValue()"
+              [disabled]="!isNotchMode()"
               (change)="setNotchDisplay($any($event.target).value)"
-              class="w-full sm:w-56 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner cursor-pointer self-start sm:self-auto"
+              class="w-full sm:w-56 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner cursor-pointer self-start sm:self-auto disabled:cursor-not-allowed disabled:opacity-50"
+              [title]="isNotchMode() ? 'Choose the notch display' : 'Switch Timer Mode to Notch to use this'"
             >
               <option value="">Auto (current screen)</option>
               @for (display of displays(); track display.id) {
@@ -181,6 +209,35 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                 "
               ></span>
             </button>
+          </div>
+
+          <!-- Daily goal -->
+          <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div>
+              <p class="text-sm font-semibold text-foreground/95">
+                Daily goal
+              </p>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                Target tracked hours per workday. Drives the dashboard progress
+                and week bars.
+              </p>
+            </div>
+            <div class="flex items-center gap-2 self-start sm:self-auto">
+              <input
+                type="number"
+                min="1"
+                max="24"
+                step="0.5"
+                [value]="settings().dailyGoalHours"
+                (input)="
+                  setDailyGoalHours($any($event.target).valueAsNumber ?? 8)
+                "
+                class="w-20 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+              />
+              <span class="text-xs font-semibold text-muted-foreground">h</span>
+            </div>
           </div>
         </div>
       </section>
@@ -599,7 +656,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                   <button
                     class="flex size-8 items-center justify-center rounded-xl text-muted-foreground transition-all duration-200 hover:bg-red-500/20 hover:text-red-500 active:scale-90 cursor-pointer"
                     title="Delete"
-                    (click)="deleteConnection(conn.id)"
+                    (click)="requestDeleteConnection(conn.id)"
                   >
                     <svg
                       class="size-4"
@@ -725,6 +782,49 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             </button>
           </div>
 
+          <!-- Manual update check -->
+          <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-border/20 pt-4"
+          >
+            <div>
+              <p class="text-sm font-semibold text-foreground/95">
+                Check for updates
+              </p>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                Look for a new version right now instead of waiting for the next
+                startup check.
+              </p>
+            </div>
+            <button
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border/50 bg-secondary/35 px-4 py-2.5 text-xs font-bold text-foreground/90 transition-all duration-200 hover:bg-secondary/75 disabled:opacity-40 disabled:pointer-events-none cursor-pointer self-start sm:self-auto"
+              [disabled]="checkingForUpdates() || !ipcAvailable()"
+              (click)="checkForUpdates()"
+            >
+              @if (checkingForUpdates()) {
+                <div
+                  class="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  role="status"
+                ></div>
+              }
+              {{ checkingForUpdates() ? "Checking..." : "Check for updates" }}
+            </button>
+          </div>
+
+          @if (updateCheckStatus(); as status) {
+            <div
+              class="rounded-xl border px-4 py-3 text-xs font-semibold"
+              [class]="
+                status.tone === 'success'
+                  ? 'border-green-500/25 bg-green-500/10 text-green-700 dark:text-green-300'
+                  : status.tone === 'error'
+                    ? 'border-destructive/25 bg-destructive/10 text-destructive'
+                    : 'border-border/40 bg-secondary/35 text-muted-foreground'
+              "
+            >
+              {{ status.message }}
+            </div>
+          }
+
           <!-- Update status -->
           @if (updateService.updateAvailable(); as update) {
             <div class="rounded-xl bg-primary/10 p-4 border border-primary/20">
@@ -803,6 +903,29 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
         </div>
       </section>
     </div>
+
+    <app-dialog
+      [isOpen]="pendingConnectionId() !== null"
+      title="Delete Jira connection?"
+      cancelLabel="Cancel"
+      confirmLabel="Delete connection"
+      (close)="cancelDeleteConnection()"
+      (confirm)="confirmDeleteConnection()"
+    >
+      <div class="space-y-3">
+        <p class="leading-relaxed text-foreground/90">
+          This removes
+          <span class="font-bold text-foreground">{{ pendingConnectionName() }}</span>
+          from ChronoFlow and stops syncing with that Jira site. Existing local
+          time entries are kept.
+        </p>
+        <div
+          class="rounded-xl border border-destructive/25 bg-destructive/10 px-3.5 py-3 text-xs font-semibold text-destructive"
+        >
+          This action cannot be undone.
+        </div>
+      </div>
+    </app-dialog>
   `,
 })
 export class SettingsComponent {
@@ -829,6 +952,23 @@ export class SettingsComponent {
 
   readonly settings = this.settingsService.settings;
   readonly connections = this.jiraService.connections;
+
+  readonly isNotchMode = computed(() => this.settings().timerMode === "notch");
+
+  // Delete-connection confirmation dialog.
+  readonly pendingConnectionId = signal<string | null>(null);
+  readonly pendingConnectionName = computed(() => {
+    const id = this.pendingConnectionId();
+    const conn = id ? this.connections().find((c) => c.id === id) : null;
+    return conn?.name || conn?.domain || "this connection";
+  });
+
+  // Manual update check status (the update banner is driven by UpdateService).
+  readonly checkingForUpdates = signal(false);
+  readonly updateCheckStatus = signal<{
+    message: string;
+    tone: "info" | "success" | "error";
+  } | null>(null);
 
   readonly ipcAvailable = computed(() => !!(window as any).electronAPI);
 
@@ -880,6 +1020,7 @@ export class SettingsComponent {
 
 
   toggleAutoHideNotch(): void {
+    if (!this.isNotchMode()) return;
     this.settingsService.update({ autoHideNotch: !this.settings().autoHideNotch });
   }
 
@@ -900,6 +1041,7 @@ export class SettingsComponent {
   }
 
   setNotchDisplay(value: string): void {
+    if (!this.isNotchMode()) return;
     const parsed = value === "" ? null : Number(value);
     this.settingsService.update({
       notchDisplayId:
@@ -917,6 +1059,47 @@ export class SettingsComponent {
 
   toggleAutoUpdate(): void {
     this.settingsService.update({ autoUpdate: !this.settings().autoUpdate });
+  }
+
+  async checkForUpdates(): Promise<void> {
+    if (!this.ipcAvailable() || this.checkingForUpdates()) return;
+    this.checkingForUpdates.set(true);
+    this.updateCheckStatus.set({
+      message: "Checking for updates...",
+      tone: "info",
+    });
+    try {
+      await this.updateService.checkForUpdates();
+      const available =
+        this.updateService.updateAvailable() ??
+        this.updateService.updateDownloaded();
+      this.updateCheckStatus.set(
+        available
+          ? {
+              message: `Update available: v${available.version}.`,
+              tone: "success",
+            }
+          : {
+              message: "No updates available — you're on the latest version.",
+              tone: "success",
+            },
+      );
+    } catch (err) {
+      console.error("Failed to check for updates", err);
+      this.updateCheckStatus.set({
+        message: "Could not check for updates. Try again later.",
+        tone: "error",
+      });
+    } finally {
+      this.checkingForUpdates.set(false);
+    }
+  }
+
+  setDailyGoalHours(hours: number): void {
+    if (!Number.isFinite(hours)) return;
+    this.settingsService.update({
+      dailyGoalHours: Math.min(24, Math.max(1, Math.round(hours * 2) / 2)),
+    });
   }
 
   setDefaultVacationHours(hours: number): void {
@@ -1199,8 +1382,26 @@ export class SettingsComponent {
     this.showConnectionForm.set(true);
   }
 
-  async deleteConnection(id: string): Promise<void> {
-    await this.jiraService.deleteConnection(id);
+  requestDeleteConnection(id: string): void {
+    this.pendingConnectionId.set(id);
+  }
+
+  cancelDeleteConnection(): void {
+    this.pendingConnectionId.set(null);
+  }
+
+  async confirmDeleteConnection(): Promise<void> {
+    const id = this.pendingConnectionId();
+    if (!id) return;
+    this.pendingConnectionId.set(null);
+    try {
+      const deleted = await this.jiraService.deleteConnection(id);
+      if (!deleted) {
+        console.error("Failed to delete Jira connection");
+      }
+    } catch (err) {
+      console.error("Failed to delete Jira connection", err);
+    }
   }
 
   private resetConnectionForm(): void {
