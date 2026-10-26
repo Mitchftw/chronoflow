@@ -35,7 +35,18 @@ async function findDraftRelease() {
 
 async function publishRelease(releaseId) {
   const url = `https://api.github.com/repos/${OWNER}/${REPO}/releases/${releaseId}`;
-  const response = await axios.patch(url, { draft: false }, { headers });
+  const releaseNotes = pkg.build?.releaseInfo?.releaseNotes;
+  const response = await axios.patch(
+    url,
+    {
+      draft: false,
+      name: `${pkg.productName || 'ChronoFlow'} v${pkg.version}`,
+      ...(typeof releaseNotes === 'string' && releaseNotes.trim()
+        ? { body: releaseNotes }
+        : {}),
+    },
+    { headers }
+  );
   return response.data;
 }
 
