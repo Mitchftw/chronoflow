@@ -42,6 +42,8 @@ export class AgentsService implements OnDestroy {
   readonly claudeRings = computed<UsageRing[]>(() => this.rings(this._state().claude.primary, this._state().claude.secondary));
   readonly claudeAvailable = computed(() => this._state().claude.available);
   readonly claudeScriptPath = computed(() => this._state().claude.scriptPath);
+  readonly claudeError = computed(() => this._state().claude.error ?? '');
+  readonly claudeSource = computed(() => this._state().claude.source ?? null);
 
   /** Highest of all known windows, for the compact chip. */
   readonly peak = computed(() => Math.max(0, ...this.codexRings().map((r) => r.percent), ...this.claudeRings().map((r) => r.percent)));

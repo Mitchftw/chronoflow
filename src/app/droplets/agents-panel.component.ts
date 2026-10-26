@@ -20,6 +20,11 @@ import { AgentLogoComponent } from './agent-logo.component';
               @if (a.working) {
                 <span class="size-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               }
+              @if (a.kind === 'claude' && a.source === 'oauth' && a.rings.length) {
+                <span class="ml-auto rounded bg-white/5 px-1 py-px text-[8px] font-bold uppercase tracking-wide text-zinc-500" title="Read from your local Claude Code OAuth login">
+                  desktop
+                </span>
+              }
             </div>
             @if (a.rings.length) {
               <div class="flex flex-col gap-1.5">
@@ -43,14 +48,18 @@ import { AgentLogoComponent } from './agent-logo.component';
                 }
               </div>
             } @else if (a.kind === 'claude') {
-              <p class="text-[9px] leading-snug text-zinc-500">
-                Limits appear once a <span class="font-semibold text-zinc-400">terminal</span> Claude Code session replies (Pro/Max login).
-              </p>
+              @if (a.error) {
+                <p class="text-[9px] leading-snug text-amber-300">{{ a.error }}</p>
+              } @else {
+                <p class="text-[9px] leading-snug text-zinc-500">
+                  Usage appears after the first Claude Code response. Desktop sessions use your local Claude login automatically.
+                </p>
+              }
               <button
                 class="mt-1 rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-zinc-300 hover:bg-white/10 cursor-pointer"
                 (click)="copySetup()"
-                title="Only needed if the hook isn't in ~/.claude/settings.json yet"
-              >{{ copied() ? 'Copied' : 'Copy hook setup' }}</button>
+                title="Optional terminal status line; Desktop and OAuth work without it"
+              >{{ copied() ? 'Copied' : 'Copy terminal status line setup' }}</button>
             } @else {
               <p class="text-[9px] leading-snug text-zinc-500">{{ a.empty }}</p>
             }
@@ -102,6 +111,8 @@ export class AgentsPanelComponent {
         rings: this.agents.claudeRings() as UsageRing[],
         working: sessions.some((s) => s.agent === 'claude' && s.working),
         empty: '',
+        source: this.agents.claudeSource(),
+        error: this.agents.claudeError(),
       },
       {
         kind: 'codex' as const,
@@ -109,6 +120,8 @@ export class AgentsPanelComponent {
         rings: this.agents.codexRings() as UsageRing[],
         working: this.agents.codexWorking(),
         empty: this.agents.codexAvailable() ? 'No usage yet. Run a prompt.' : 'Codex not found.',
+        source: null,
+        error: '',
       },
     ];
   });

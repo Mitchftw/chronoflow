@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -97,7 +97,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.21\n\n#### Changes\n- **Week overview restored:** the dashboard week panel is back to one bar per day with the tracked hours on the right, and the selected day is outlined.\n\n#### Also\n- Includes the Backlog status filter and original/remaining estimates from 0.1.20, and the Droplet Store, Agents and Media droplets from 0.1.19."
+      "releaseNotes": "### ChronoFlow v0.1.23\n\n#### New\n- **Claude usage limits in the Agents droplet now work with Claude Desktop:** ChronoFlow reads your local Claude Code OAuth session, refreshes it when needed, and also keeps the terminal status-line bridge as a source. The droplet shows the 5-hour and weekly windows with reset countdowns and a small DESKTOP badge when the OAuth source is used.\n\n#### Fixes\n- Timesheets now filters by the selected local day and shows project badges.\n- Running timers roll over correctly at midnight; durations include seconds and manual Jira worklog updates work again.\n- Loading from Jira no longer deletes local entries on an incomplete fetch.\n- Delete actions ask for confirmation and active timers are protected.\n- Improved dialogs, keyboard search, theme handling, daily goal settings and light-mode contrast.\n\nIncludes all changes from the 0.1.23 bugfix branch and refreshed E2E coverage."
     }
   }
 }

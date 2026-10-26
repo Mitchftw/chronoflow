@@ -617,6 +617,10 @@ function createTimerWindow(mode: "draggable" | "notch") {
         animationInterval = null;
       }
     }
+    // The timer overlay is the only window that hosts the Agents droplet.
+    // Stop its polling when the window goes away so OAuth usage checks do not
+    // keep running in the background.
+    stopAgentsService();
     stopMouseTracking();
   });
 }

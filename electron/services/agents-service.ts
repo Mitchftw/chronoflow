@@ -4,6 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import { logger } from "../utils/logger";
 import { readSessions, type AgentSession } from "./agent-sessions";
+import { getClaudeOAuthUsage, type ClaudeUsageState } from "./claude-usage";
 
 /**
  * Agents droplet backend.
@@ -32,15 +33,7 @@ export interface CodexState {
   updatedAt?: number;
 }
 
-export interface ClaudeState {
-  /** True once the statusline bridge has delivered at least one reading. */
-  available: boolean;
-  primary?: UsageWindow;
-  secondary?: UsageWindow;
-  updatedAt?: number;
-  /** Absolute path of the statusline script the user has to point Claude Code at. */
-  scriptPath: string;
-}
+export type ClaudeState = ClaudeUsageState;
 
 export interface AgentsState {
   codex: CodexState;
@@ -190,26 +183,74 @@ function toClaudeWindow(raw: any, windowMinutes: number): UsageWindow | undefine
   return { usedPercent: raw.used_percentage, windowMinutes, resetsAt: raw.resets_at };
 }
 
-function readClaude(): ClaudeState {
-  const base: ClaudeState = { available: false, scriptPath: CLAUDE_SCRIPT };
+function readClaudeSnapshot(): ClaudeState | null {
   try {
     const snap = JSON.parse(fs.readFileSync(CLAUDE_SNAPSHOT, "utf8"));
     const primary = toClaudeWindow(snap?.rate_limits?.five_hour, 300);
     const secondary = toClaudeWindow(snap?.rate_limits?.seven_day, 10080);
-    if (!primary && !secondary) return base;
-    return { ...base, available: true, primary, secondary, updatedAt: snap.at };
+    if (!primary && !secondary) return null;
+    return {
+      available: true,
+      primary,
+      secondary,
+      updatedAt: typeof snap.at === "number" ? snap.at : undefined,
+      scriptPath: CLAUDE_SCRIPT,
+      source: "statusline",
+    };
   } catch {
-    return base;
+    return null;
   }
 }
 
-function poll(): void {
+const SNAPSHOT_FRESH_MS = 5 * 60_000;
+
+/**
+ * Prefer a recent terminal statusline snapshot (no network), then fall back
+ * to the local Claude OAuth session so Claude Desktop-only users also get
+ * usage. `getClaudeOAuthUsage` is cached/backed off internally.
+ */
+async function readClaude(): Promise<ClaudeState> {
+  const snapshot = readClaudeSnapshot();
+  const snapshotFresh =
+    !!snapshot?.available &&
+    typeof snapshot.updatedAt === "number" &&
+    Date.now() - snapshot.updatedAt < SNAPSHOT_FRESH_MS;
+
+  let oauth: ClaudeState | null = null;
+  if (!snapshotFresh) {
+    oauth = await getClaudeOAuthUsage(CLAUDE_SCRIPT);
+  }
+
+  if (
+    oauth &&
+    (!snapshot ||
+      !snapshot.available ||
+      (oauth.updatedAt ?? 0) >= (snapshot.updatedAt ?? 0))
+  ) {
+    return oauth;
+  }
+
+  return snapshot ?? { available: false, scriptPath: CLAUDE_SCRIPT };
+}
+
+let pollInFlight = false;
+
+async function poll(): Promise<void> {
+  if (pollInFlight) return;
+  pollInFlight = true;
   try {
-    lastState = { codex: readCodex(), claude: readClaude(), sessions: readSessions(newestRollouts(4)) };
+    lastState = {
+      codex: readCodex(),
+      claude: await readClaude(),
+      sessions: readSessions(newestRollouts(4)),
+    };
   } catch (err) {
     logger.warn("agents poll failed:", err);
     return;
+  } finally {
+    pollInFlight = false;
   }
+
   const json = JSON.stringify(lastState);
   if (json === lastJson) return;
   lastJson = json;
@@ -230,8 +271,8 @@ export function registerAgentsHandlers(windows: () => (BrowserWindow | null)[]):
     if (enabled) {
       ensureClaudeScript();
       lastJson = "";
-      poll();
-      if (!timer) timer = setInterval(poll, POLL_MS);
+      void poll();
+      if (!timer) timer = setInterval(() => void poll(), POLL_MS);
     } else {
       stopAgentsService();
     }

@@ -271,6 +271,10 @@ export interface ClaudeState {
   secondary?: UsageWindow;
   updatedAt?: number;
   scriptPath: string;
+  /** Which local source produced the reading. */
+  source?: 'statusline' | 'oauth';
+  /** Human-readable reason when no reading is available. */
+  error?: string;
 }
 
 export interface AgentSession {

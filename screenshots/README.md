@@ -19,5 +19,6 @@ Captured with `node scripts/capture-screenshots.mjs before|after` at 1440×1000 
 | Dashboard (dark) | ![before](before/11-dashboard-dark.png) | ![after](after/11-dashboard-dark.png) |
 | Dashboard (timer running) | ![before](before/12-dashboard-active.png) | ![after](after/12-dashboard-active.png) |
 | Floating timer overlay | ![before](before/13-timer-overlay.png) | ![after](after/13-timer-overlay.png) |
+| Agents droplet — Claude usage (new) | — | ![after](after/14-agents-claude-usage.png) |
 
 The before set was captured on `main` at `bba5994`. The after set is captured from `fix/bugs-and-visual-polish` with the same seed and window size, so differences are caused by the changes in that branch.
