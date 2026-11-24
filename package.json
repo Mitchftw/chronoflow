@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -101,7 +101,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "## ChronoFlow v0.1.25\n\nAll seven main screens now use the full width beside the sidebar, including on ultrawide monitors. The dashboard timeline and time entries expand with the window. Settings uses two proportional columns on wide screens, and Vacation has more room for planning and reviewing days."
+      "releaseNotes": "## ChronoFlow v0.1.26\n\nThe Dashboard time-entry headers now line up with their fields at every table width, including ultrawide layouts. At intermediate widths, notes appear below the entry while the action buttons stay on the first line."
     }
   }
 }

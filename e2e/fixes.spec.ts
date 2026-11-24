@@ -135,6 +135,47 @@ test("timesheets only show the selected local day", async () => {
   await expect(page.locator("app-timesheets")).not.toContainText("Today first");
 });
 
+test("dashboard time entry headers align at both table widths", async () => {
+  await nav("Dashboard");
+  const list = page.locator("app-time-entry-list");
+  const row = list.locator("div.grid").filter({ hasText: "Today first" });
+  await expect(row).toBeVisible();
+  const container = list.locator(".\\@container");
+  try {
+    for (const width of [740, 960]) {
+      await container.evaluate((el, width) => el.style.width = width + "px", width);
+      const header = list.locator("div").filter({ has: page.getByText("Duration", { exact: true }) })
+        .filter({ has: page.getByText("Actions", { exact: true }) }).last();
+      const timeCells = row.locator(":scope > .font-mono > span");
+      const columns = [
+        ["Start", timeCells.nth(0), "left"],
+        ["End", timeCells.nth(1), "left"],
+        ["Duration", timeCells.nth(2), "left"],
+        ["Actions", row.getByRole("button", { name: "Delete entry" }), "right"],
+      ] as const;
+      for (const [label, cell, edge] of columns) {
+        const heading = header.getByText(label, { exact: true });
+        const [h, c] = await Promise.all([heading.boundingBox(), cell.boundingBox()]);
+        expect(h, label).not.toBeNull();
+        expect(c, label).not.toBeNull();
+        const position = (box: { x: number; width: number }) => box.x + (edge === "right" ? box.width : 0);
+        expect(Math.abs(position(h!) - position(c!)), label).toBeLessThan(1);
+      }
+      const noteHeading = header.getByText("Note", { exact: true });
+      const note = await row.getByText("Today first", { exact: true }).boundingBox();
+      if (width === 960) {
+        await expect(noteHeading).toBeVisible();
+        expect(Math.abs((await noteHeading.boundingBox())!.x - note!.x)).toBeLessThan(1);
+      } else {
+        await expect(noteHeading).toBeHidden();
+        expect(note!.y).toBeGreaterThan((await columns[0][1].boundingBox())!.y);
+      }
+    }
+  } finally {
+    await container.evaluate(el => el.style.removeProperty("width"));
+  }
+});
+
 test("dashboard follows the selected day and shows its label", async () => {
   await nav("Dashboard");
   await expect(page.locator("app-stats-cards")).toContainText("Tracked today");

@@ -46,8 +46,9 @@ import {
         </button>
       </div>
     } @else {
-<div class="@container overflow-hidden rounded-2xl border border-border/40 bg-card/65 shadow-sm">
-        @let cols = '@2xl:grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem_auto] @4xl:grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem_minmax(0,14rem)_auto]';
+      <div class="@container overflow-hidden rounded-2xl border border-border/40 bg-card/65 shadow-sm">
+        <!-- Reserve the same width for the header and the four action buttons. -->
+        @let cols = '@2xl:grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem_8.75rem] @4xl:grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem_minmax(0,14rem)_8.75rem]';
         <div class="hidden @2xl:grid gap-x-4 border-b border-border/40 bg-muted/40 px-5 py-3 text-[11px] font-semibold text-muted-foreground"
              [class]="cols">
           <span>Issue</span><span>Start</span><span>End</span><span>Duration</span>
@@ -76,7 +77,7 @@ import {
               } @else {
                 <span class="hidden text-sm text-muted-foreground @4xl:block">-</span>
               }
-              <div class="col-start-2 row-start-1 flex shrink-0 justify-end gap-1 @2xl:col-auto @2xl:row-auto">
+              <div class="col-start-2 row-start-1 flex shrink-0 justify-end gap-1 @2xl:col-start-[-2]">
                 <!-- Same play/running button as the issue cards: a filled
                          play triangle, or a pulsing dot on the entry that is
                          currently being tracked. -->
