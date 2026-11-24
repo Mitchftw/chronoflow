@@ -8,8 +8,8 @@ import type { JiraConnection, BacklogSprint } from "../../src/types";
 /**
  * Helper function to extract detailed error information from HTTP responses
  */
-function handleHttpError(error: any, context: string): string {
-  logger.error(`[${context}] HTTP Error:`, error);
+export function handleHttpError(error: any, context: string): string {
+  logger.error(`[${context}] HTTP error:`, error?.message);
 
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError;
@@ -18,15 +18,6 @@ function handleHttpError(error: any, context: string): string {
       logger.error(
         `[${context}] Status: ${axiosError.response.status} ${axiosError.response.statusText}`,
       );
-      logger.error(
-        `[${context}] Response Headers:`,
-        JSON.stringify(axiosError.response.headers, null, 2),
-      );
-      logger.error(
-        `[${context}] Response Body:`,
-        JSON.stringify(axiosError.response.data, null, 2),
-      );
-
       const responseData = axiosError.response.data as any;
 
       if (
@@ -102,7 +93,7 @@ const CLIENT_SECRET = process.env['JIRA_CLIENT_SECRET'] || "ATOAizYTklZ2WKdhRW86
 /**
  * Helper to get the correct base URL and headers based on auth type
  */
-function getJiraRequestConfig(params: {
+export function getJiraRequestConfig(params: {
   authType: "api-key" | "oauth";
   domain: string;
   cloudId?: string;
@@ -139,7 +130,7 @@ function getJiraRequestConfig(params: {
 /**
  * Helper to ensure a valid access token is used (refreshes if needed and updates DB)
  */
-async function getOrRefreshAccessToken(connectionId?: string, currentAccessToken?: string): Promise<string | undefined> {
+export async function getOrRefreshAccessToken(connectionId?: string, currentAccessToken?: string): Promise<string | undefined> {
   if (!connectionId) return currentAccessToken;
 
   try {

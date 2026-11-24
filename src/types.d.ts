@@ -128,6 +128,7 @@ export interface DisplayInfo {
 declare global {
   interface Window {
     electronAPI?: {
+      mcp: { install(agent: string): Promise<{success: boolean; path?: string; error?: string}> };
       app: {
         getVersion: () => Promise<string>;
         isDev: () => Promise<boolean>;
@@ -138,6 +139,12 @@ declare global {
         close: () => Promise<void>;
       };
       store: {
+        createProject(project: Project): Promise<void>;
+        updateProject(id: string, fields: Partial<Project>): Promise<Project | null>;
+        deleteProject(id: string): Promise<void>;
+        createIssue(issue: Issue): Promise<void>;
+        updateIssue(id: string, fields: Partial<Issue>): Promise<Issue | null>;
+        deleteIssue(id: string): Promise<void>;
         get: (key: string) => Promise<any>;
         set: (key: string, value: any) => Promise<void>;
         delete: (key: string) => Promise<void>;
@@ -171,7 +178,7 @@ declare global {
         getWorklogsForDate: (params: any) => Promise<IpcResponse>;
         getConnections: () => Promise<IpcResponse>;
         getDefaultConnection: () => Promise<any>;
-        createConnection: (data: any) => Promise<IpcResponse>;
+        createConnection: (data: any) => Promise<IpcResponse & { connection?: JiraConnection }>;
         updateConnection: (params: { id: string; updates: any }) => Promise<IpcResponse>;
         deleteConnection: (params: { id: string }) => Promise<IpcResponse>;
         testConnection: (params: any) => Promise<IpcResponse & { user?: { displayName: string; emailAddress: string; accountId: string } }>;

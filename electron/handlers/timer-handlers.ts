@@ -1,4 +1,6 @@
 import { ipcMain, BrowserWindow } from "electron";
+import { enqueueWrite } from "../services/write-queue";
+import { withTransaction } from "../database";
 import { randomUUID } from "crypto";
 import * as dbService from "../db-service";
 import { logger } from "../utils/logger";
@@ -39,6 +41,42 @@ let timerState: {
 };
 
 type WindowGetter = () => BrowserWindow | null;
+
+/**
+ * Result shape shared by the IPC handlers and the direct entry points below.
+ */
+export interface TimerActionResult {
+  success: boolean;
+  error?: string;
+  data?: any;
+}
+
+/**
+ * Direct (non-IPC) entry points to the timer, installed by
+ * registerTimerHandlers. The MCP server uses these so it drives the very same
+ * state machine as the UI — midnight rollover, 15-minute rounding, issue
+ * bookkeeping and window broadcasts all stay in one place.
+ */
+export const timerApi: {
+  start: ((
+    issueId: string,
+    options?: { date?: string; startTime?: string },
+  ) => Promise<TimerActionResult>) | null;
+  stop: ((note?: string, stopTime?: number) => Promise<TimerActionResult>) | null;
+  pause: (() => Promise<TimerActionResult>) | null;
+  resume: (() => Promise<TimerActionResult>) | null;
+  updateEntry: ((
+    id: string,
+    updates: Record<string, unknown>,
+  ) => Promise<TimerActionResult>) | null;
+} = {
+  start: null,
+  stop: null,
+  pause: null,
+  resume: null,
+  updateEntry: null,
+};
+
 
 // Registered by registerTimerHandlers. The rollover monitor can start before
 // the windows exist (restore runs first), so these are optional.
@@ -335,42 +373,44 @@ async function performDayRollover(
     return false;
   }
 
-  // Close the entry that still belongs to the previous day.
-  await dbService.updateTimeEntry(entry.id, {
-    endTime: "23:59:59",
-    isDirty: true,
-  });
-
-  // Create full-day entries for every missed day between the old entry and
-  // today. The loop is deliberately bounded by today's local midnight; a
-  // clock jump far into the future therefore cannot loop forever.
+  const newEntryId = randomUUID();
   const todayMidnight = localMidnight(now);
-  let cursor = addLocalDays(startDate, 1);
-  while (cursor.getTime() < todayMidnight.getTime()) {
-    await dbService.createTimeEntry({
-      id: randomUUID(),
-      issueId: entry.issueId,
-      date: formatLocalDate(cursor),
-      startTime: "00:00:00",
+  await withTransaction(async () => {
+    // Close the entry that still belongs to the previous day.
+    await dbService.updateTimeEntry(entry.id, {
       endTime: "23:59:59",
-      note: "",
+      isDirty: true,
+    });
+
+    // Create full-day entries for every missed day between the old entry and
+    // today. The loop is deliberately bounded by today's local midnight; a
+    // clock jump far into the future therefore cannot loop forever.
+    let cursor = addLocalDays(startDate, 1);
+    while (cursor.getTime() < todayMidnight.getTime()) {
+      await dbService.createTimeEntry({
+        id: randomUUID(),
+        issueId: entry.issueId,
+        date: formatLocalDate(cursor),
+        startTime: "00:00:00",
+        endTime: "23:59:59",
+        note: "",
+        jiraWorklogId: null,
+        isDirty: true,
+      });
+      cursor = addLocalDays(cursor, 1);
+    }
+
+    // Today's entry starts at local midnight and stays open.
+    await dbService.createTimeEntry({
+      id: newEntryId,
+      issueId: entry.issueId,
+      date: today,
+      startTime: "00:00:00",
+      endTime: null,
+      note: entry.note || "",
       jiraWorklogId: null,
       isDirty: true,
     });
-    cursor = addLocalDays(cursor, 1);
-  }
-
-  // Today's entry starts at local midnight and stays open.
-  const newEntryId = randomUUID();
-  await dbService.createTimeEntry({
-    id: newEntryId,
-    issueId: entry.issueId,
-    date: today,
-    startTime: "00:00:00",
-    endTime: null,
-    note: entry.note || "",
-    jiraWorklogId: null,
-    isDirty: true,
   });
 
   timerState.entryId = newEntryId;
@@ -423,9 +463,72 @@ export function checkRunningTimerDayRollover(
 export function startTimerRolloverMonitor(): void {
   if (rolloverMonitor) return;
   rolloverMonitor = setInterval(() => {
-    void checkRunningTimerDayRollover();
+    void enqueueWrite(() => checkRunningTimerDayRollover());
   }, 30_000);
   rolloverMonitor.unref();
+}
+
+export async function resumeTrackedEntry(entryId: string): Promise<TimerActionResult> {
+  if (timerState.isRunning) return { success: false, error: "Stop the current timer before resuming an entry." };
+  const result = await resumeOpenEntry(entryId);
+  if (!result.success) return result;
+  broadcastTimerState(timerWindowGetter?.() ?? null, mainWindowGetter?.() ?? null);
+  return { success: true, data: getTimerState() };
+}
+
+async function entryAction<T>(action: () => Promise<T>): Promise<TimerActionResult> {
+  try {
+    return { success: true, data: await action() };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// Keep the timer on the open remainder, including when a point split assigns it to another task.
+async function splitTracked<T extends { lastId: string | null }>(entryId: string, targetId: string | undefined, split: () => Promise<T>): Promise<T> {
+  const active = timerState.entryId === entryId;
+  const { parts, tail } = await withTransaction(async () => {
+    const entry = await dbService.getTimeEntry(entryId);
+    if (!entry) throw new Error("Time entry not found");
+    const parts = await dbService.accountForEntryEdit([entry.issueId, targetId ?? entry.issueId], split);
+    const tail = active && parts.lastId ? await dbService.getTimeEntry(parts.lastId) : null;
+    if (tail) {
+      if (timerState.issueId && timerState.issueId !== tail.issueId) {
+        await dbService.updateIssue(timerState.issueId, { isRunning: false, startTime: null });
+      }
+      await dbService.updateIssue(tail.issueId, {
+        isRunning: true, startTime: parseLocalDateTime(tail.date, tail.startTime)!.getTime(),
+      });
+    }
+    return { parts, tail };
+  });
+  if (tail) {
+    timerState.entryId = tail.id;
+    timerState.issueId = tail.issueId;
+    alignEditedTimer(tail.date, tail.startTime, true);
+    broadcastTimerState(timerWindowGetter?.() ?? null, mainWindowGetter?.() ?? null);
+  }
+  return parts;
+}
+
+export function splitTrackedEntry(...args: Parameters<typeof dbService.splitTimeEntry>) {
+  return splitTracked(args[0], args[2], () => dbService.splitTimeEntry(...args));
+}
+
+export function splitTrackedRange(...args: Parameters<typeof dbService.splitOutRange>) {
+  return splitTracked(args[0], args[3], () => dbService.splitOutRange(...args));
+}
+
+function alignEditedTimer(date: string, time: string, newSegment = false): void {
+  const start = parseLocalDateTime(date, time)!.getTime();
+  const now = Date.now();
+  const activeEnd = timerState.pauseStart ?? now;
+  const previousSpan = activeEnd - (timerState.initialStartTime ?? activeEnd);
+  const pausedMs = newSegment ? 0 : Math.max(0, previousSpan - getTimerStateElapsed(activeEnd) * 1000);
+  const elapsed = Math.max(0, activeEnd - start - pausedMs);
+  timerState.initialStartTime = start;
+  timerState.pausedElapsed = timerState.isPaused ? elapsed : 0;
+  timerState.startTime = timerState.isPaused ? null : now - elapsed;
 }
 
 /**
@@ -440,8 +543,14 @@ export function registerTimerHandlers(
   mainWindowGetter = getMainWindow;
   startTimerRolloverMonitor();
 
+  const handleEdit = <Args extends any[], Result>(channel: string, action: (...args: Args) => Promise<Result>) =>
+    ipcMain.handle(channel, (_event, ...args) => enqueueWrite(() => action(...args as Args)));
+
   // Start tracking time for an issue
-  ipcMain.handle("timer:start", async (_, issueId: string) => {
+  const startTimer = async (
+    issueId: string,
+    options: { date?: string; startTime?: string } = {},
+  ): Promise<TimerActionResult> => {
     try {
       if (timerState.isRunning && !timerState.isPaused) {
         return {
@@ -461,6 +570,13 @@ export function registerTimerHandlers(
               "A paused timer is already running for another issue. Stop it first.",
           };
         }
+        if (options.date || options.startTime) {
+          return {
+            success: false,
+            error:
+              "A paused timer already exists. Resume or stop it before starting with a custom start time.",
+          };
+        }
 
         timerState.isPaused = false;
         timerState.pauseStart = null;
@@ -474,41 +590,56 @@ export function registerTimerHandlers(
 
       const now = Date.now();
       const today = formatLocalDate(new Date());
+      const startDate = options.date ?? today;
+      const startWallClock = options.startTime ?? formatLocalTime(new Date(now));
+
+      // Backdating: an agent (or the UI) can log work that started earlier in
+      // the day. The entry keeps the real start, so elapsed time and the
+      // 15-minute rounding both count from it.
+      const startAt = parseLocalDateTime(startDate, startWallClock);
+      if (!startAt) {
+        return {
+          success: false,
+          error: `Invalid start "${startDate} ${startWallClock}". Use date YYYY-MM-DD and time HH:MM[:SS].`,
+        };
+      }
+      // Allow a minute of clock skew, reject anything genuinely ahead of now.
+      if (startAt.getTime() > now + 60_000) {
+        return {
+          success: false,
+          error: `Start time ${startDate} ${startWallClock} is in the future.`,
+        };
+      }
+      const startMs = startAt.getTime();
 
       // Create a new time entry
       const entryId = randomUUID();
-      await dbService.createTimeEntry({
-        id: entryId,
-        issueId,
-        startTime: formatLocalTime(new Date(now)),
-        endTime: null,
-        date: today,
-        note: '',
-        jiraWorklogId: null,
+      await withTransaction(async () => {
+        await dbService.createTimeEntry({
+          id: entryId,
+          issueId,
+          startTime: startWallClock,
+          endTime: null,
+          date: startDate,
+          note: '',
+          jiraWorklogId: null,
+        });
+        await dbService.updateIssue(issueId, { isRunning: true, startTime: startMs });
       });
 
       timerState = {
         issueId,
         entryId,
-        startTime: now,
-        initialStartTime: now,
+        startTime: startMs,
+        initialStartTime: startMs,
         isRunning: true,
         isPaused: false,
         pausedElapsed: 0,
         pauseStart: null,
       };
 
-      // Mark the issue as running
-      const issue = await dbService.getIssue(issueId);
-      if (issue) {
-        await dbService.updateIssue(issueId, {
-          isRunning: true,
-          startTime: now,
-        });
-      }
-
       broadcastTimerState(getTimerWindow(), getMainWindow());
-      logger.info(`Timer started for issue: ${issueId}`);
+      logger.info(`Timer started for issue: ${issueId} at ${startDate} ${startWallClock}`);
       return { success: true, data: getTimerState() };
     } catch (error: any) {
       logger.error("Failed to start timer:", error);
@@ -517,10 +648,17 @@ export function registerTimerHandlers(
         error: error.message || "Failed to start timer",
       };
     }
-  });
+  };
+  timerApi.start = startTimer;
+  handleEdit("timer:start", async (issueId: string) =>
+    startTimer(issueId),
+  );
 
   // Stop tracking time
-  ipcMain.handle("timer:stop", async (_, note?: string, stopTime?: number) => {
+  const stopTimer = async (
+    note?: string,
+    stopTime?: number,
+  ): Promise<TimerActionResult> => {
     try {
       if (!timerState.isRunning) {
         return { success: false, error: "No timer is running." };
@@ -565,49 +703,51 @@ export function registerTimerHandlers(
         roundedEnd = roundedStart + (elapsedSeconds * 1000) + actualPausedMs;
       }
 
-      if (entryId) {
-        const currentEntry = await dbService.getTimeEntry(entryId);
-        const stopDate = formatLocalDate(new Date(roundedEnd));
+      await withTransaction(async () => {
+        if (entryId) {
+          const currentEntry = await dbService.getTimeEntry(entryId);
+          const stopDate = formatLocalDate(new Date(roundedEnd));
 
-        // Fallback split: if the open entry belongs to an earlier local day,
-        // close it per day so every stored row's date matches its segment.
-        // The first segment keeps the existing row (and worklog id).
-        if (currentEntry && currentEntry.date < stopDate) {
-          const entryStart = parseLocalDateTime(
-            currentEntry.date,
-            currentEntry.startTime,
-          );
-          const splitStart = entryStart
-            ? Math.min(roundedStart, entryStart.getTime())
-            : roundedStart;
-          await closeEntryAcrossDays(
-            currentEntry,
-            new Date(splitStart),
-            new Date(roundedEnd),
-            note,
-          );
-        } else {
-          // Close the time entry and set note if provided
-          await dbService.updateTimeEntry(entryId, {
-            startTime: roundTo15Min ? formatLocalTime(new Date(roundedStart)) : undefined,
-            endTime: formatLocalTime(new Date(roundedEnd)),
-            date: roundTo15Min ? formatLocalDate(new Date(roundedStart)) : undefined,
-            ...(note !== undefined ? { note } : {}),
-          });
+          // Fallback split: if the open entry belongs to an earlier local day,
+          // close it per day so every stored row's date matches its segment.
+          // The first segment keeps the existing row (and worklog id).
+          if (currentEntry && currentEntry.date < stopDate) {
+            const entryStart = parseLocalDateTime(
+              currentEntry.date,
+              currentEntry.startTime,
+            );
+            const splitStart = entryStart
+              ? Math.min(roundedStart, entryStart.getTime())
+              : roundedStart;
+            await closeEntryAcrossDays(
+              currentEntry,
+              new Date(splitStart),
+              new Date(roundedEnd),
+              note,
+            );
+          } else {
+            // Close the time entry and set note if provided
+            await dbService.updateTimeEntry(entryId, {
+              startTime: roundTo15Min ? formatLocalTime(new Date(roundedStart)) : undefined,
+              endTime: formatLocalTime(new Date(roundedEnd)),
+              date: roundTo15Min ? formatLocalDate(new Date(roundedStart)) : undefined,
+              ...(note !== undefined ? { note } : {}),
+            });
+          }
         }
-      }
 
-      // Update issue time spent and mark as not running
-      if (issueId) {
-        const issue = await dbService.getIssue(issueId);
-        if (issue) {
-          await dbService.updateIssue(issueId, {
-            timeSpent: (issue.timeSpent || 0) + elapsedSeconds,
-            isRunning: false,
-            startTime: null,
-          });
+        // Update issue time spent and mark as not running
+        if (issueId) {
+          const issue = await dbService.getIssue(issueId);
+          if (issue) {
+            await dbService.updateIssue(issueId, {
+              timeSpent: (issue.timeSpent || 0) + elapsedSeconds,
+              isRunning: false,
+              startTime: null,
+            });
+          }
         }
-      }
+      });
 
       timerState = {
         issueId: null,
@@ -639,10 +779,16 @@ export function registerTimerHandlers(
         error: error.message || "Failed to stop timer",
       };
     }
-  });
+  };
+  timerApi.stop = stopTimer;
+  handleEdit(
+    "timer:stop",
+    async (note?: string, stopTime?: number) =>
+      stopTimer(note, stopTime),
+  );
 
   // Pause timer (stop accumulating time but keep state)
-  ipcMain.handle("timer:pause", async () => {
+  const pauseTimer = async (): Promise<TimerActionResult> => {
     try {
       if (!timerState.isRunning) {
         return { success: false, error: "No timer is running." };
@@ -669,10 +815,12 @@ export function registerTimerHandlers(
         error: error.message || "Failed to pause timer",
       };
     }
-  });
+  };
+  timerApi.pause = pauseTimer;
+  handleEdit("timer:pause", async () => pauseTimer());
 
   // Resume timer
-  ipcMain.handle("timer:resume", async () => {
+  const resumeTimer = async (): Promise<TimerActionResult> => {
     try {
       if (!timerState.isRunning) {
         return { success: false, error: "No timer is running." };
@@ -695,20 +843,14 @@ export function registerTimerHandlers(
         error: error.message || "Failed to resume timer",
       };
     }
-  });
+  };
+  timerApi.resume = resumeTimer;
+  handleEdit("timer:resume", async () => resumeTimer());
 
   // Resume timing on an existing open (endless) entry — e.g. an entry that
   // was left running when the app quit, or a manual entry without an end
   // time. The timer keeps counting from the entry's original start time.
-  ipcMain.handle("timer:resume-entry", async (_, entryId: string) => {
-    const result = await resumeOpenEntry(entryId);
-    if (result.success) {
-      broadcastTimerState(getTimerWindow(), getMainWindow());
-      logger.info(`Timer resumed on entry: ${entryId}`);
-      return { success: true, data: getTimerState() };
-    }
-    return result;
-  });
+  handleEdit("timer:resume-entry", resumeTrackedEntry);
 
   // Get current timer state
   ipcMain.handle("timer:get-state", async () => {
@@ -735,13 +877,13 @@ export function registerTimerHandlers(
     }
   });
 
-  ipcMain.handle("timer:create-entry", async (_, entry) => {
+  handleEdit("timer:create-entry", async (entry: TimeEntry) => {
     try {
       const newEntry = {
         ...entry,
         id: entry.id || randomUUID(),
       };
-      await dbService.createTimeEntry(newEntry);
+      await dbService.accountForEntryEdit([newEntry.issueId], () => dbService.createTimeEntry(newEntry));
       return { success: true, data: newEntry };
     } catch (error: any) {
       logger.error("Failed to create time entry:", error);
@@ -752,17 +894,33 @@ export function registerTimerHandlers(
     }
   });
 
-  ipcMain.handle("timer:update-entry", async (_, { id, updates }) => {
+  const updateEntry = async (
+    id: string,
+    updates: Record<string, unknown>,
+  ): Promise<TimerActionResult> => {
     try {
-      await dbService.updateTimeEntry(id, updates);
-      // If the running timer's entry start time is edited, realign the
-      // in-memory timer so elapsed and the stored start time stay in sync.
-      if (
-        timerState.isRunning &&
-        timerState.entryId === id &&
-        typeof updates.startTime === "string"
-      ) {
-        realignRunningTimer(updates.startTime);
+      const active = timerState.entryId === id;
+      const entry = await dbService.getTimeEntry(id);
+      if (!entry) throw new Error("Time entry not found");
+      if (active && updates["endTime"]) throw new Error("Stop the timer before setting an end time on its entry.");
+      const date = String(updates["date"] ?? entry.date);
+      const start = String(updates["startTime"] ?? entry.startTime);
+      const timingChanged = updates["startTime"] !== undefined || updates["date"] !== undefined;
+      if (active && timingChanged) {
+        const timestamp = parseLocalDateTime(date, start);
+        if (!timestamp || timestamp.getTime() > Date.now()) throw new Error("The running entry cannot start in the future.");
+      }
+      const issueId = String(updates["issueId"] ?? entry.issueId);
+      await withTransaction(async () => {
+        await dbService.accountForEntryEdit([entry.issueId, issueId], () => dbService.moveTimeEntry(id, updates));
+        if (active && (timingChanged || issueId !== entry.issueId)) {
+          if (issueId !== entry.issueId) await dbService.updateIssue(entry.issueId, { isRunning: false, startTime: null });
+          await dbService.updateIssue(issueId, { isRunning: true, startTime: parseLocalDateTime(date, start)!.getTime() });
+        }
+      });
+      if (active) {
+        timerState.issueId = issueId;
+        if (timingChanged) alignEditedTimer(date, start);
         broadcastTimerState(getTimerWindow(), getMainWindow());
       }
       return { success: true };
@@ -773,9 +931,13 @@ export function registerTimerHandlers(
         error: error.message || "Failed to update time entry",
       };
     }
-  });
+  };
+  timerApi.updateEntry = updateEntry;
+  handleEdit("timer:update-entry", async ({ id, updates }: { id: string; updates: Record<string, unknown> }) =>
+    updateEntry(id, updates),
+  );
 
-  ipcMain.handle("timer:delete-entry", async (_, id: string) => {
+  handleEdit("timer:delete-entry", async (id: string) => {
     try {
       if (timerState.isRunning && timerState.entryId === id) {
         return {
@@ -783,7 +945,8 @@ export function registerTimerHandlers(
           error: "Stop the timer before deleting this entry.",
         };
       }
-      await dbService.deleteTimeEntry(id);
+      const entry = await dbService.getTimeEntry(id);
+      if (entry) await dbService.accountForEntryEdit([entry.issueId], () => dbService.deleteTimeEntry(id));
       return { success: true };
     } catch (error: any) {
       logger.error("Failed to delete time entry:", error);
@@ -794,70 +957,12 @@ export function registerTimerHandlers(
     }
   });
 
-  ipcMain.handle(
-    "timer:split-entry",
-    async (_, originalEntryId, splitTime, newIssueId, newNote) => {
-      try {
-        await dbService.splitTimeEntry(originalEntryId, splitTime, newIssueId, newNote);
-        return { success: true };
-      } catch (error: any) {
-        logger.error("Failed to split time entry:", error);
-        return {
-          success: false,
-          error: error.message || "Failed to split time entry",
-        };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    "timer:split-out-entry",
-    async (_, originalEntryId, fromTime, toTime, newIssueId, newNote) => {
-      try {
-        const result = await dbService.splitOutRange(
-          originalEntryId,
-          fromTime,
-          toTime,
-          newIssueId,
-          newNote,
-        );
-        // If the running timer's entry was split, its remainder keeps
-        // running from the end of the split-out block.
-        if (
-          timerState.isRunning &&
-          timerState.entryId === originalEntryId &&
-          result.lastId
-        ) {
-          timerState.entryId = result.lastId;
-          realignRunningTimer(toTime);
-          broadcastTimerState(getTimerWindow(), getMainWindow());
-        }
-        return { success: true, data: result };
-      } catch (error: any) {
-        logger.error("Failed to split out time entry:", error);
-        return {
-          success: false,
-          error: error.message || "Failed to split out time entry",
-        };
-      }
-    },
-  );
-
-  ipcMain.handle(
-    "timer:merge-entries",
-    async (_, entryIds, noteStrategy, customNote) => {
-      try {
-        await dbService.mergeTimeEntries(entryIds, noteStrategy, customNote);
-        return { success: true };
-      } catch (error: any) {
-        logger.error("Failed to merge time entries:", error);
-        return {
-          success: false,
-          error: error.message || "Failed to merge time entries",
-        };
-      }
-    },
-  );
+  handleEdit("timer:split-entry", (...args: Parameters<typeof splitTrackedEntry>) =>
+    entryAction(() => splitTrackedEntry(...args)));
+  handleEdit("timer:split-out-entry", (...args: Parameters<typeof splitTrackedRange>) =>
+    entryAction(() => splitTrackedRange(...args)));
+  handleEdit("timer:merge-entries", (...args: Parameters<typeof dbService.mergeTimeEntries>) =>
+    entryAction(() => dbService.mergeTimeEntries(...args)));
 
   ipcMain.handle("timer:get-deleted-worklogs", async () => {
     try {

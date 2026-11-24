@@ -23,7 +23,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
   selector: "app-settings",
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PageHeaderComponent, DropletStoreComponent, DialogComponent],
-  host: { class: "block max-w-3xl" },
+  host: { class: "block w-full" },
   template: `
     <app-page-header title="Settings" subtitle="Configure your application preferences" />
 
@@ -47,25 +47,17 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
       </div>
     }
 
-    <div class="space-y-6">
-      <!-- ═══ Droplet Store ═══ -->
-      <section class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300">
-        <h2 class="mb-1 text-sm font-bold text-muted-foreground">Droplet Store</h2>
-        <p class="mb-5 pb-2 border-b border-border/20 text-xs text-muted-foreground">
-          Add-ons for the notch. Install what you want, remove the rest.
-        </p>
-        <app-droplet-store />
-      </section>
-
-      <!-- ═══ Appearance ═══ -->
+    <div class="grid max-w-[72rem] grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,21rem)]">
+      <div class="flex min-w-0 flex-col gap-6">
       <section
         class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
-        <h2
-          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
-        >
-          Appearance
-        </h2>
+        <header class="mb-5 border-b border-border/20 pb-4">
+          <h2 class="text-sm font-bold text-foreground/90">Appearance</h2>
+          <p class="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Theme, timer display and notch behaviour.
+          </p>
+        </header>
 
         <div class="space-y-5">
           <!-- Theme toggle -->
@@ -182,6 +174,48 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               }
             </select>
           </div>
+        </div>
+      </section>
+
+      <section
+        class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
+      >
+        <header class="mb-5 border-b border-border/20 pb-4">
+          <h2 class="text-sm font-bold text-foreground/90">Tracking</h2>
+          <p class="mt-1 text-xs leading-relaxed text-muted-foreground">
+            How time is rounded, how much you aim to log, and when idle time is caught.
+          </p>
+        </header>
+
+        <div class="space-y-5">
+          <!-- Daily goal -->
+          <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div>
+              <p class="text-sm font-semibold text-foreground/95">
+                Daily goal
+              </p>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                Target tracked hours per workday. Drives the dashboard progress
+                and week bars.
+              </p>
+            </div>
+            <div class="flex items-center gap-2 self-start sm:self-auto">
+              <input
+                type="number"
+                min="1"
+                max="24"
+                step="0.5"
+                [value]="settings().dailyGoalHours"
+                (input)="
+                  setDailyGoalHours($any($event.target).valueAsNumber ?? 8)
+                "
+                class="w-20 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+              />
+              <span class="text-xs font-semibold text-muted-foreground">h</span>
+            </div>
+          </div>
 
           <!-- Round to 15m -->
           <div
@@ -211,99 +245,52 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
             </button>
           </div>
 
-          <!-- Daily goal -->
-          <div
-            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-          >
-            <div>
-              <p class="text-sm font-semibold text-foreground/95">
-                Daily goal
-              </p>
-              <p class="text-xs text-muted-foreground mt-0.5">
-                Target tracked hours per workday. Drives the dashboard progress
-                and week bars.
-              </p>
+          <!-- Idle threshold -->
+          <div>
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-foreground/95">
+                  Idle threshold
+                </p>
+                <p class="text-xs text-muted-foreground mt-0.5">
+                  After this much inactivity you're asked to keep or discard the idle time.
+                </p>
+              </div>
+              <span
+                class="shrink-0 rounded-lg border border-border/20 bg-secondary/80 px-2 py-0.5 text-xs font-bold text-foreground tabular-nums"
+              >
+                {{ settings().idleThresholdMinutes < 1 ? "Off" : settings().idleThresholdMinutes + " min" }}
+              </span>
             </div>
-            <div class="flex items-center gap-2 self-start sm:self-auto">
+            <div class="mt-3 space-y-1.5">
               <input
-                type="number"
-                min="1"
-                max="24"
-                step="0.5"
-                [value]="settings().dailyGoalHours"
-                (input)="
-                  setDailyGoalHours($any($event.target).valueAsNumber ?? 8)
-                "
-                class="w-20 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-bold text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
+                type="range"
+                min="0"
+                max="30"
+                step="1"
+                [value]="settings().idleThresholdMinutes"
+                (input)="setIdleThreshold($any($event.target).valueAsNumber ?? 0)"
+                class="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-secondary/80 accent-primary"
+                aria-label="Idle threshold in minutes"
               />
-              <span class="text-xs font-semibold text-muted-foreground">h</span>
+              <div class="flex justify-between text-[10px] font-bold text-muted-foreground">
+                <span>Off</span>
+                <span>30 min</span>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ═══ Idle Detection ═══ -->
       <section
         class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
-        <h2
-          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
-        >
-          Idle Detection
-        </h2>
-
-        <div class="space-y-4">
-          <div class="flex items-center justify-between">
-            <p class="text-sm font-semibold text-foreground/95">
-              Idle Threshold
-            </p>
-            <span
-              class="rounded-lg bg-secondary/80 px-2 py-0.5 text-xs font-bold text-foreground border border-border/20"
-            >
-              {{ settings().idleThresholdMinutes }} min
-              @if (settings().idleThresholdMinutes === 0) {
-                (disabled)
-              }
-            </span>
-          </div>
-          <div class="space-y-1.5">
-            <input
-              type="range"
-              min="0"
-              max="30"
-              step="1"
-              [value]="settings().idleThresholdMinutes"
-              (input)="setIdleThreshold($any($event.target).valueAsNumber ?? 0)"
-              class="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-secondary/80 accent-primary"
-            />
-            <div
-              class="flex justify-between text-[10px] font-bold text-muted-foreground "
-            >
-              <span>Off</span>
-              <span>30 min</span>
-            </div>
-          </div>
-          <p class="text-xs text-muted-foreground leading-relaxed mt-2.5">
-            After this period of inactivity, you'll be prompted to keep or
-            discard the idle time.
-          </p>
-        </div>
-      </section>
-
-      <!-- ═══ Jira Integration ═══ -->
-      <section
-        class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
-      >
-        <div
-          class="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        <header
+          class="mb-5 flex flex-col gap-3 border-b border-border/20 pb-4 sm:flex-row sm:items-start sm:justify-between"
         >
           <div>
-            <h2
-              class="text-sm font-bold text-muted-foreground pb-1 border-b border-border/20 sm:border-none sm:pb-0"
-            >
-              Jira Integration
-            </h2>
-            <p class="text-xs text-muted-foreground mt-0.5">
+            <h2 class="text-sm font-bold text-foreground/90">Jira Integration</h2>
+            <p class="mt-1 text-xs leading-relaxed text-muted-foreground">
               Manage connections to Atlassian Jira Cloud
             </p>
           </div>
@@ -330,7 +317,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               Connect Jira
             }
           </button>
-        </div>
+        </header>
 
         <!-- Connection form -->
         @if (showConnectionForm()) {
@@ -679,24 +666,59 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
         }
       </section>
 
-      <!-- ═══ Vacation Defaults ═══ -->
+      <section class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300">
+        <header class="mb-5 border-b border-border/20 pb-4">
+          <h2 class="text-sm font-bold text-foreground/90">Droplet Store</h2>
+          <p class="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Add-ons for the notch. Install what you want, remove the rest.
+          </p>
+        </header>
+        <app-droplet-store />
+      </section>
+
+      </div>
+
+      <div class="flex min-w-0 flex-col gap-6">
+      <section class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md">
+        <header class="mb-5 border-b border-border/20 pb-4">
+          <h2 class="text-sm font-bold text-foreground/90">Agent MCP</h2>
+          <p class="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Your agent can manage projects and tasks, move or split tracked time, merge entries, control the timer and search Jira. ChronoFlow must be running when the agent connects.
+          </p>
+        </header>
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="flex flex-col gap-1 text-xs font-semibold text-foreground">
+            Agent
+            <select class="rounded-lg border border-border/60 bg-background px-3 py-2 text-sm" [value]="mcpAgent()" (change)="mcpAgent.set($any($event.target).value); mcpMessage.set('')">
+              <option value="codex">Codex</option>
+              <option value="claude">Claude</option>
+              <option value="agy">AGY (Antigravity)</option>
+              <option value="opencode">OpenCode</option>
+            </select>
+          </label>
+          <button class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50" [disabled]="mcpInstalling() || !ipcAvailable()" (click)="installMcp()">
+            {{ mcpInstalling() ? 'Installing…' : 'Install MCP' }}
+          </button>
+        </div>
+        @if (mcpMessage()) {
+          <p class="mt-3 text-xs text-muted-foreground" role="status">{{ mcpMessage() }}</p>
+        }
+      </section>
+
       <section
         class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
-        <h2
-          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
-        >
-          Vacation
-        </h2>
-
-        <div class="space-y-3.5">
-          <p class="text-xs text-muted-foreground leading-relaxed">
+        <header class="mb-5 border-b border-border/20 pb-4">
+          <h2 class="text-sm font-bold text-foreground/90">Vacation</h2>
+          <p class="mt-1 text-xs leading-relaxed text-muted-foreground">
             Defaults applied when logging vacation on a Jira verlof ticket from
             <span class="text-foreground/80 font-semibold">/vacation</span>.
           </p>
+        </header>
 
+        <div class="space-y-5">
           <!-- Default hours per workday -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="space-y-2.5">
             <div>
               <p class="text-sm font-semibold text-foreground/95">
                 Hours per workday
@@ -705,7 +727,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
                 Standard is 8h. Use 0.5 increments for part-time schedules.
               </p>
             </div>
-            <div class="flex items-center gap-2 self-start sm:self-auto">
+            <div class="flex items-center gap-2">
               <input
                 type="number"
                 min="0"
@@ -724,7 +746,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
           </div>
 
           <!-- Default verlof issue key -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-border/20">
+          <div class="space-y-2.5 border-t border-border/20 pt-4">
             <div>
               <p class="text-sm font-semibold text-foreground/95">
                 Default verlof ticket
@@ -739,21 +761,21 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               [value]="settings().defaultVacationIssueKey ?? ''"
               (input)="setDefaultVacationIssueKey($any($event.target).value)"
               placeholder="e.g. VERL-12"
-              class="w-40 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-mono font-bold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner self-start sm:self-auto"
+              class="w-full max-w-40 rounded-xl border border-border/40 bg-background/50 px-3 py-2 text-sm font-mono font-bold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-inner"
             />
           </div>
         </div>
       </section>
 
-      <!-- ═══ Updates ═══ -->
       <section
         class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
-        <h2
-          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
-        >
-          Updates
-        </h2>
+        <header class="mb-5 border-b border-border/20 pb-4">
+          <h2 class="text-sm font-bold text-foreground/90">Updates</h2>
+          <p class="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Keep ChronoFlow up to date.
+          </p>
+        </header>
 
         <div class="space-y-4">
           <!-- Auto-update toggle -->
@@ -784,7 +806,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
 
           <!-- Manual update check -->
           <div
-            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-border/20 pt-4"
+            class="flex flex-col gap-3 border-t border-border/20 pt-4"
           >
             <div>
               <p class="text-sm font-semibold text-foreground/95">
@@ -796,7 +818,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
               </p>
             </div>
             <button
-              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border/50 bg-secondary/35 px-4 py-2.5 text-xs font-bold text-foreground/90 transition-all duration-200 hover:bg-secondary/75 disabled:opacity-40 disabled:pointer-events-none cursor-pointer self-start sm:self-auto"
+              class="inline-flex items-center justify-center gap-2 self-start whitespace-nowrap rounded-xl border border-border/50 bg-secondary/35 px-4 py-2.5 text-xs font-bold text-foreground/90 transition-all duration-200 hover:bg-secondary/75 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
               [disabled]="checkingForUpdates() || !ipcAvailable()"
               (click)="checkForUpdates()"
             >
@@ -859,15 +881,15 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
         </div>
       </section>
 
-      <!-- ═══ About ═══ -->
       <section
         class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
       >
-        <h2
-          class="mb-5 text-sm font-bold text-muted-foreground pb-2 border-b border-border/20"
-        >
-          About
-        </h2>
+        <header class="mb-5 border-b border-border/20 pb-4">
+          <h2 class="text-sm font-bold text-foreground/90">About</h2>
+          <p class="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Build and runtime details.
+          </p>
+        </header>
 
         <div class="space-y-3.5 text-sm select-none">
           <div
@@ -902,6 +924,8 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
           }
         </div>
       </section>
+
+      </div>
     </div>
 
     <app-dialog
@@ -929,6 +953,25 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
   `,
 })
 export class SettingsComponent {
+  readonly mcpAgent = signal('codex');
+  readonly mcpInstalling = signal(false);
+  readonly mcpMessage = signal('');
+
+  async installMcp(): Promise<void> {
+    this.mcpInstalling.set(true);
+    this.mcpMessage.set('');
+    try {
+      const result = await window.electronAPI!.mcp.install(this.mcpAgent());
+      this.mcpMessage.set(result.success
+        ? `Installed in ${result.path}. Restart your agent to connect.`
+        : `Installation failed: ${result.error}`);
+    } catch (error) {
+      this.mcpMessage.set(`Installation failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      this.mcpInstalling.set(false);
+    }
+  }
+
   readonly settingsService = inject(SettingsService);
   readonly jiraService = inject(JiraService);
   readonly updateService = inject(UpdateService);

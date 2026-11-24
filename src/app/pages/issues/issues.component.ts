@@ -14,7 +14,6 @@ import { IssueFormDialogComponent } from '../../components/common/issue-form-dia
 import { PageHeaderComponent } from '../../components/common/page-header.component';
 import { DialogComponent } from '../../components/common/dialog.component';
 import type { Issue } from '../../models/issue';
-import type { Project } from '../../models/project';
 import { issueColor as resolveIssueColor } from '../../utils/colors';
 
 type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
@@ -174,7 +173,7 @@ type StatusFilter = 'all' | 'todo' | 'in_progress' | 'done';
       [(isOpen)]="showFormDialog"
       [projects]="projects()"
       [editingIssue]="editingIssue()"
-      (saved)="onIssueSaved($event)"
+      (saved)="onIssueSaved()"
       (dismissed)="onFormDismissed()"
     />
 
@@ -217,8 +216,8 @@ export class IssuesComponent {
   // ── State ──
 
   loading = signal(true);
-  issues = signal<Issue[]>([]);
-  projects = signal<Project[]>([]);
+  readonly issues = this.db.issues;
+  readonly projects = this.db.projects;
   searchQuery = signal('');
   statusFilter = signal<StatusFilter>('all');
   projectFilter = signal('');
@@ -299,8 +298,6 @@ export class IssuesComponent {
         this.db.reloadIssues(),
         this.db.reloadProjects(),
       ]);
-      this.issues.set(this.db.issues());
-      this.projects.set(this.db.projects());
     } catch (err) {
       console.error('Failed to load issues', err);
     } finally {
@@ -324,17 +321,13 @@ export class IssuesComponent {
 
         // Let the database generate the canonical issue (real id/createdAt)
         // instead of pushing a hand-built object that does not exist in the DB.
-        const created = await this.db.createIssue({
+        await this.db.createIssue({
           title: result.summary,
           jiraIssueKey: result.key,
           estimate: result.issue.estimateMinutes ?? 0,
         });
-        this.syncIssueList();
-        this.upsertIssue(created);
       } else if (result.type === 'create') {
-        const created = await this.db.createIssue({ title: result.issue.title });
-        this.syncIssueList();
-        this.upsertIssue(created);
+        await this.db.createIssue({ title: result.issue.title });
       } else {
         // Local issue — start tracking it.
         await this.onStartTimer(result.issue.id);
@@ -372,7 +365,6 @@ export class IssuesComponent {
       // Reload the canonical list so exactly one issue is marked running and
       // timeSpent is never overwritten by an optimistic local guess.
       await this.db.reloadIssues();
-      this.syncIssueList();
     } catch (err) {
       console.error('Failed to start timer', err);
       this.actionError.set(this.toErrorMessage(err, 'Could not start the timer.'));
@@ -422,8 +414,6 @@ export class IssuesComponent {
 
     try {
       await this.db.deleteIssue(issue.id);
-      this.syncIssueList();
-      this.issues.update((list) => list.filter((i) => i.id !== issue.id));
       this.showDeleteDialog.set(false);
       this.pendingDeleteIssue.set(null);
     } catch (err) {
@@ -489,10 +479,8 @@ export class IssuesComponent {
     }
   }
 
-  onIssueSaved(issue: Issue): void {
+  onIssueSaved(): void {
     this.actionError.set(null);
-    this.syncIssueList();
-    this.upsertIssue(issue);
     // The dialog closes on success; forget the previous edit so the next
     // edit (even of the same issue) repopulates every field.
     this.editingIssue.set(null);
@@ -516,22 +504,6 @@ export class IssuesComponent {
 
   getIssueColor(issue: Issue): string {
     return resolveIssueColor(issue);
-  }
-
-  /** Mirror the canonical list held by DatabaseService. */
-  private syncIssueList(): void {
-    this.issues.set(this.db.issues());
-  }
-
-  /** Ensure a canonical issue returned by DatabaseService is present locally. */
-  private upsertIssue(issue: Issue): void {
-    this.issues.update((list) => {
-      const idx = list.findIndex((i) => i.id === issue.id);
-      if (idx === -1) return [...list, issue];
-      const next = [...list];
-      next[idx] = issue;
-      return next;
-    });
   }
 
   private toErrorMessage(err: unknown, fallback: string): string {

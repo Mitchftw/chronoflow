@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "async_hooks";
 import * as path from "path";
 import * as fs from "fs";
 import { app } from "electron";
@@ -21,12 +22,16 @@ export async function initDatabase(): Promise<Database> {
   }
 
   const dbPath = getDatabasePath();
-  if (!app.isPackaged || process.env['NODE_ENV'] === "development") {
+  if (process.env['CHRONOFLOW_USE_INSTALLED_DATA'] === "true" && process.env['IS_TEST'] !== "true" && !fs.existsSync(dbPath)) {
+    throw new Error(`Installed database not found at ${dbPath}. Refusing to create an empty database in installed-data mode.`);
+  }
+  if ((!app.isPackaged || process.env['NODE_ENV'] === "development") && process.env['CHRONOFLOW_USE_INSTALLED_DATA'] !== "true") {
     logger.warn("=== DEV MODE: using isolated development database ===");
   }
   logger.info("Database path:", dbPath);
 
-  db = await open({ filename: dbPath, driver: sqlite3.Database });
+  const installedData = process.env['CHRONOFLOW_USE_INSTALLED_DATA'] === "true" && process.env['IS_TEST'] !== "true";
+  db = await open({ filename: dbPath, driver: sqlite3.Database, ...(installedData ? { mode: sqlite3.OPEN_READWRITE } : {}) });
   logger.info("Database opened successfully");
 
   // Don't let a second process wait forever on a DB the primary instance
@@ -203,7 +208,30 @@ async function applyMigrations(): Promise<void> {
   `);
 }
 
+// A separate connection keeps unrelated IPC requests outside an edit's transaction.
+const transaction = new AsyncLocalStorage<Database>();
+
+export async function withTransaction<T>(operation: () => Promise<T>): Promise<T> {
+  if (transaction.getStore()) return operation();
+  const connection = await open({ filename: getDatabasePath(), driver: sqlite3.Database, mode: sqlite3.OPEN_READWRITE });
+  try {
+    await connection.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 10000; BEGIN IMMEDIATE");
+    try {
+      const result = await transaction.run(connection, operation);
+      await connection.exec("COMMIT");
+      return result;
+    } catch (error) {
+      await connection.exec("ROLLBACK");
+      throw error;
+    }
+  } finally {
+    await connection.close();
+  }
+}
+
 export function getDatabase(): Database {
+  const active = transaction.getStore();
+  if (active) return active;
   if (!db) {
     throw new Error("Database not initialized. Call initDatabase() first.");
   }
@@ -218,10 +246,10 @@ export async function closeDatabase(): Promise<void> {
 }
 
 export function getDatabasePath(): string {
-  // Anything running from source (electron .) is dev — never the production
-  // database, even if NODE_ENV was accidentally left unset. NODE_ENV alone
-  // is also honored for scripts that set it explicitly.
-  const isDev = !app.isPackaged || process.env['NODE_ENV'] === "development";
+  // The explicit installed-data mode uses the production filename. Tests
+  // always keep the isolated filename, even if the opt-in flag is inherited.
+  const installedData = process.env['CHRONOFLOW_USE_INSTALLED_DATA'] === "true" && process.env['IS_TEST'] !== "true";
+  const isDev = !installedData && (!app.isPackaged || process.env['NODE_ENV'] === "development");
   const dbName = isDev ? "todo-tracker.dev.db" : "todo-tracker.db";
   return path.join(getPath(), dbName);
 }

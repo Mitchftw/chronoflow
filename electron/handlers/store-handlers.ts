@@ -1,27 +1,32 @@
+import type { Project, Issue } from "../../src/types";
 import { ipcMain } from "electron";
 import * as dbService from "../db-service";
 import { getTimerState } from "./timer-handlers";
 
-let storeOperationQueue: Promise<void> = Promise.resolve();
-
-/**
- * Enqueue store operations to prevent race conditions
- */
-function enqueueStoreOperation<T>(
-  operation: () => Promise<T>,
-): Promise<T> {
-  const run = storeOperationQueue.then(operation);
-  storeOperationQueue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
+import { enqueueWrite } from "../services/write-queue";
 
 /**
  * Register all store-related IPC handlers (SQLite-backed)
  */
 export function registerStoreHandlers() {
+  // Interactive edits target one row. A renderer snapshot may already be stale
+  // when an agent creates a task or starts a timer in another request.
+  ipcMain.handle("store:create-project", (_, project: Project) => enqueueWrite(() => dbService.createProject(project)));
+  ipcMain.handle("store:update-project", (_, id: string, fields: Partial<Project>) => enqueueWrite(async () => {
+    await dbService.updateProject(id, fields);
+    return dbService.getProject(id);
+  }));
+  ipcMain.handle("store:delete-project", (_, id: string) => enqueueWrite(() => dbService.deleteProject(id)));
+  ipcMain.handle("store:create-issue", (_, issue: Issue) => enqueueWrite(() => dbService.createIssue(issue)));
+  ipcMain.handle("store:update-issue", (_, id: string, fields: Partial<Issue>) => enqueueWrite(async () => {
+    await dbService.updateIssue(id, fields);
+    return dbService.getIssue(id);
+  }));
+  ipcMain.handle("store:delete-issue", (_, id: string) => enqueueWrite(async () => {
+    if (getTimerState().issueId === id) throw new Error("Stop the timer before deleting its task.");
+    await dbService.deleteIssue(id);
+  }));
+
   // Get data from store
   ipcMain.handle("store:get", async (_, key: string) => {
     switch (key) {
@@ -40,7 +45,7 @@ export function registerStoreHandlers() {
 
   // Set data in store
   ipcMain.handle("store:set", async (_, key: string, value: any) => {
-    return enqueueStoreOperation(async () => {
+    return enqueueWrite(async () => {
       switch (key) {
         case "projects": {
           if (value && Array.isArray(value)) {
@@ -93,7 +98,7 @@ export function registerStoreHandlers() {
 
   // Delete data from store
   ipcMain.handle("store:delete", async (_, key: string) => {
-    return enqueueStoreOperation(async () => {
+    return enqueueWrite(async () => {
       switch (key) {
         case "projects":
           await dbService.deleteAllProjects();

@@ -1,11 +1,12 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
     "dev": "concurrently -k --handle-input -n main,renderer \"npm run dev:main\" \"npm run dev:renderer\"",
+    "dev:installed-data": "cross-env CHRONOFLOW_USE_INSTALLED_DATA=true npm run dev",
     "dev:main": "tsc -p tsconfig.main.json && cross-env NODE_ENV=development electron .",
     "dev:renderer": "ng serve",
     "build:renderer": "ng build",
@@ -25,21 +26,17 @@
   "license": "MIT",
   "devDependencies": {
     "@angular-devkit/build-angular": "^19.0.0",
-    "@angular/cli": "^19.0.0",
-    "@angular/compiler-cli": "^19.0.0",
     "@angular/animations": "^19.0.0",
+    "@angular/cli": "^19.0.0",
     "@angular/common": "^19.0.0",
     "@angular/compiler": "^19.0.0",
+    "@angular/compiler-cli": "^19.0.0",
     "@angular/core": "^19.0.0",
     "@angular/forms": "^19.0.0",
     "@angular/platform-browser": "^19.0.0",
     "@angular/platform-browser-dynamic": "^19.0.0",
     "@angular/router": "^19.0.0",
     "@angular/ssr": "^19.0.0",
-    "rxjs": "^7.8.0",
-    "tslib": "^2.6.0",
-    "zone.js": "^0.15.0",
-    "date-fns": "^4.1.0",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/postcss": "^4.3.0",
     "@tailwindcss/vite": "^4.1.18",
@@ -47,20 +44,27 @@
     "autoprefixer": "^10.4.23",
     "concurrently": "^8.2.2",
     "cross-env": "^10.1.0",
+    "date-fns": "^4.1.0",
     "electron": "^35.0.0",
     "electron-builder": "^26.0.12",
     "postcss": "^8.5.6",
+    "rxjs": "^7.8.0",
     "tailwindcss": "^4.1.18",
+    "tslib": "^2.6.0",
     "typescript": "^5.3.3",
-    "vitest": "^4.0.13"
+    "vitest": "^4.0.13",
+    "zone.js": "^0.15.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "axios": "^1.6.2",
     "dotenv": "^17.2.3",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
+    "jsonc-parser": "^3.3.1",
     "sqlite": "^4.2.1",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "zod": "^4.6.7"
   },
   "build": {
     "appId": "com.mitchftw.chronoflow",
@@ -97,7 +101,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "### ChronoFlow v0.1.23\n\n#### New\n- **Claude usage limits in the Agents droplet now work with Claude Desktop:** ChronoFlow reads your local Claude Code OAuth session, refreshes it when needed, and also keeps the terminal status-line bridge as a source. The droplet shows the 5-hour and weekly windows with reset countdowns and a small DESKTOP badge when the OAuth source is used.\n\n#### Fixes\n- Timesheets now filters by the selected local day and shows project badges.\n- Running timers roll over correctly at midnight; durations include seconds and manual Jira worklog updates work again.\n- Loading from Jira no longer deletes local entries on an incomplete fetch.\n- Delete actions ask for confirmation and active timers are protected.\n- Improved dialogs, keyboard search, theme handling, daily goal settings and light-mode contrast.\n\nIncludes all changes from the 0.1.23 bugfix branch and refreshed E2E coverage."
+      "releaseNotes": "## ChronoFlow v0.1.24\n\nChronoFlow now exposes 26 MCP tools for managing local projects, tasks and tracked time. Open **Settings → Agent MCP**, select your agent, and click **Install MCP**. Restart the agent and keep ChronoFlow running.\n\n- Move time to another task or day while preserving its duration. Split at a specific second, remove a break, reassign a block, or merge entries across midnight.\n- Start, pause, resume and correct timers from your agent. Splitting a running entry keeps the timer on the remaining open segment.\n- Search Jira and import a ticket as a local task before assigning time to it. Linked entries retain the information needed for the next Jira sync.\n- Agent edits appear in the desktop app. Concurrent timer starts are serialized, and failed multi-step edits roll back together.\n\nThe installer supports Codex, Claude Code, Antigravity and OpenCode."
     }
   }
 }

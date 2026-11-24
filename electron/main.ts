@@ -1,4 +1,5 @@
 import { app, BrowserWindow, shell, ipcMain, screen } from "electron";
+import { startMcpService, stopMcpService, registerMcpHandlers } from "./services/mcp-service";
 import { registerMediaHandlers, stopMediaService } from "./services/media-service";
 import { registerAgentsHandlers, stopAgentsService } from "./services/agents-service";
 import * as dotenv from "dotenv";
@@ -10,27 +11,21 @@ dotenv.config();
 
 // Isolate userData for E2E tests
 if (process.env["IS_TEST"] === "true") {
-  const testUserDataPath = path.join(app.getPath("temp"), "chronoflow-test-userdata");
+  // A fresh directory avoids deleting any existing directory and also keeps
+  // concurrent test runs isolated from each other.
+  const testUserDataPath = fs.mkdtempSync(path.join(app.getPath("temp"), "chronoflow-test-userdata-"));
   app.setPath("userData", testUserDataPath);
-  // Wipe any state a previous run left behind so the suite is deterministic
-  // (e.g. a timer left running at the end of the last run).
-  try {
-    fs.rmSync(testUserDataPath, { recursive: true, force: true });
-  } catch {
-    // Best-effort: a locked file just means we start from the old state.
-  }
 }
 
-// Dev builds (running from source) must NEVER touch the production
+// Dev builds normally do not touch the production
 // userData. Give them their own directory so the database, settings, logs
 // and the single-instance heartbeat are fully isolated from the installed
 // app — a dev instance can never wipe, lock or corrupt the production
-// database, no matter how it is launched (npm run dev, IDE, direct
-// electron .).
+// database unless the explicit installed-data opt-in below is set.
 // E2E tests keep their own throwaway userData (set above). Do not let the
 // dev-data override clobber it, otherwise every test run would share — and
 // pollute — the developer's live ChronoFlow-Dev database.
-if (!app.isPackaged && process.env["IS_TEST"] !== "true") {
+if (!app.isPackaged && process.env["IS_TEST"] !== "true" && process.env["CHRONOFLOW_USE_INSTALLED_DATA"] !== "true") {
   app.setPath(
     "userData",
     path.join(app.getPath("appData"), "ChronoFlow-Dev"),
@@ -41,6 +36,13 @@ if (!app.isPackaged && process.env["IS_TEST"] !== "true") {
     "[DEV MODE] Using isolated userData:",
     app.getPath("userData"),
   );
+}
+
+// Opt-in only: use the installed app's database and the same instance guard.
+// Tests always take precedence and remain isolated, even if this flag is set.
+if (!app.isPackaged && process.env["IS_TEST"] !== "true" && process.env["CHRONOFLOW_USE_INSTALLED_DATA"] === "true") {
+  app.setPath("userData", path.join(app.getPath("appData"), "ChronoFlow"));
+  console.log("[DEV MODE] Using installed ChronoFlow data:", app.getPath("userData"));
 }
 
 import { autoUpdater } from "electron-updater";
@@ -107,16 +109,18 @@ function stopHeartbeat(): void {
 }
 
 // Handle deep links
-if (process.defaultApp) {
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient(
-      "chronoflow",
-      process.execPath,
-      [path.resolve(process.argv[1])],
-    );
+if (process.env["IS_TEST"] !== "true") {
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient(
+        "chronoflow",
+        process.execPath,
+        [path.resolve(process.argv[1])],
+      );
+    }
+  } else {
+    app.setAsDefaultProtocolClient("chronoflow");
   }
-} else {
-  app.setAsDefaultProtocolClient("chronoflow");
 }
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -145,6 +149,120 @@ if (!gotTheLock) {
     event.preventDefault();
     handleDeepLink(url);
   });
+}
+
+// ---- Deep links coming from another process ----
+// Windows launches the chronoflow:// handler without the caller's environment,
+// so that fresh process cannot tell whether the running instance uses the dev
+// or the installed database — and its single-instance lock is per userData, so
+// it happily starts a second window on the *other* database. A shared inbox
+// plus an owner heartbeat in %APPDATA%\ChronoFlow lets it hand the URL to
+// whichever instance is already running and exit without showing a window.
+const deepLinkDir = path.join(app.getPath("appData"), "ChronoFlow", "deep-links");
+const deepLinkOwnerPath = path.join(deepLinkDir, ".owner");
+const DEEP_LINK_OWNER_TTL_MS = 15000;
+let deepLinkOwnerInterval: NodeJS.Timeout | null = null;
+
+function incomingDeepLink(): string | undefined {
+  return process.argv.find((arg) => arg.startsWith("chronoflow://"));
+}
+
+function anotherInstanceOwnsDeepLinks(): boolean {
+  try {
+    const stat = fs.statSync(deepLinkOwnerPath);
+    if (Date.now() - stat.mtimeMs > DEEP_LINK_OWNER_TTL_MS) return false;
+    return Number(fs.readFileSync(deepLinkOwnerPath, "utf8")) !== process.pid;
+  } catch {
+    return false;
+  }
+}
+
+function queueDeepLink(url: string): void {
+  try {
+    fs.mkdirSync(deepLinkDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(deepLinkDir, `${Date.now()}-${process.pid}.json`),
+      JSON.stringify({ url }),
+      "utf8",
+    );
+  } catch (err) {
+    logger.error("Failed to queue deep link:", err);
+  }
+}
+
+function claimDeepLinkOwnership(): void {
+  const touch = () => {
+    try {
+      fs.writeFileSync(deepLinkOwnerPath, String(process.pid), "utf8");
+    } catch {
+      /* best effort */
+    }
+  };
+  try {
+    fs.mkdirSync(deepLinkDir, { recursive: true });
+  } catch {
+    /* best effort */
+  }
+  touch();
+  if (!deepLinkOwnerInterval) {
+    deepLinkOwnerInterval = setInterval(touch, 5000);
+    deepLinkOwnerInterval.unref();
+  }
+}
+
+function stopDeepLinkOwnership(): void {
+  if (deepLinkOwnerInterval) {
+    clearInterval(deepLinkOwnerInterval);
+    deepLinkOwnerInterval = null;
+  }
+  try {
+    if (Number(fs.readFileSync(deepLinkOwnerPath, "utf8")) === process.pid) {
+      fs.unlinkSync(deepLinkOwnerPath);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Delivers deep links queued by short-lived second processes. */
+function startDeepLinkInbox(): void {
+  const drain = () => {
+    let names: string[] = [];
+    try {
+      names = fs.readdirSync(deepLinkDir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      if (!name.endsWith(".json")) continue;
+      const file = path.join(deepLinkDir, name);
+      try {
+        const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+        fs.unlinkSync(file);
+        if (typeof parsed?.url === "string" && parsed.url.startsWith("chronoflow://")) {
+          handleDeepLink(parsed.url);
+        }
+      } catch {
+        try {
+          fs.unlinkSync(file);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  };
+  const timer = setInterval(drain, 1000);
+  timer.unref();
+  drain();
+}
+
+// A protocol launch is a throwaway process: hand the URL over and get out
+// before any window, timer or database work happens.
+if (gotTheLock && incomingDeepLink() && anotherInstanceOwnsDeepLinks()) {
+  queueDeepLink(incomingDeepLink()!);
+  app.exit(0);
+} else if (gotTheLock) {
+  claimDeepLinkOwnership();
 }
 
 function handleDeepLink(url: string) {
@@ -906,10 +1024,12 @@ app.whenReady().then(async () => {
   await restoreRunningTimerFromDb();
 
   // Register all IPC handlers
+  registerMcpHandlers();
   registerWindowHandlers(() => mainWindow);
   registerStoreHandlers();
   registerJiraHandlers();
   registerTimerHandlers(() => timerWindow, () => mainWindow);
+  await startMcpService();
   registerTimerWindowHandlers();
   registerMediaHandlers(() => [timerWindow, mainWindow]);
   registerAgentsHandlers(() => [timerWindow]);
@@ -917,11 +1037,12 @@ app.whenReady().then(async () => {
   registerUpdaterHandlers();
 
   createWindow();
+  startDeepLinkInbox();
 
   // Register updater listeners in every build; only the automatic startup
   // check is gated by the persisted setting and the development environment.
   initAutoUpdater(
-    process.env['NODE_ENV'] !== "development" && autoUpdateOnStartup,
+    process.env['IS_TEST'] !== "true" && process.env['NODE_ENV'] !== "development" && autoUpdateOnStartup,
   );
 
   logger.info("Application started successfully");
@@ -936,10 +1057,12 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  stopMcpService();
   stopMediaService();
   stopAgentsService();
   closeDatabase();
   stopHeartbeat();
+  stopDeepLinkOwnership();
   // Clean up timer window
   if (timerWindow && !timerWindow.isDestroyed()) {
     timerWindow.close();

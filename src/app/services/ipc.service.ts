@@ -75,7 +75,6 @@ export class IpcService {
   }
 
   async createProject(data: { name: string; description?: string; color?: string }): Promise<Project> {
-    const projects = await this.getProjects();
     const project: Project = {
       id: crypto.randomUUID(),
       name: data.name,
@@ -83,20 +82,18 @@ export class IpcService {
       color: data.color ?? '#3b82f6',
       createdAt: Date.now(),
     };
-    await this.store?.set('projects', [...projects, project]);
+    await this.store?.createProject(project);
     return project;
   }
 
   async updateProject(id: string, data: Partial<Project>): Promise<Project> {
-    const projects = await this.getProjects();
-    const updated = projects.map((p) => (p.id === id ? { ...p, ...data } : p));
-    await this.store?.set('projects', updated);
-    return updated.find((p) => p.id === id)!;
+    const updated = await this.store?.updateProject(id, data);
+    if (!updated) throw new Error('Project not found');
+    return updated;
   }
 
   async deleteProject(id: string): Promise<void> {
-    const projects = await this.getProjects();
-    await this.store?.set('projects', projects.filter((p) => p.id !== id));
+    await this.store?.deleteProject(id);
   }
 
   // ── Issues (store namespace) ──
@@ -105,8 +102,7 @@ export class IpcService {
     return (await this.store?.get('issues')) ?? [];
   }
 
-  async createIssue(data: { title: string; description?: string; projectId?: string; status?: string; jiraIssueKey?: string | null; estimate?: number; color?: string | null }): Promise<Issue> {
-    const issues = await this.getIssues();
+  async createIssue(data: { title: string; description?: string; projectId?: string; status?: string; jiraIssueKey?: string | null; jiraConnectionId?: string | null; estimate?: number; color?: string | null }): Promise<Issue> {
     const issue: Issue = {
       id: crypto.randomUUID(),
       title: data.title,
@@ -114,7 +110,7 @@ export class IpcService {
       projectId: data.projectId ?? '',
       status: (data.status as Issue['status']) ?? 'todo',
       jiraIssueKey: data.jiraIssueKey ?? null,
-      jiraConnectionId: null,
+      jiraConnectionId: data.jiraConnectionId ?? null,
       estimate: data.estimate ?? 0,
       timeSpent: 0,
       isRunning: false,
@@ -123,20 +119,18 @@ export class IpcService {
       date: toLocalDate(),
       color: data.color ?? null,
     };
-    await this.store?.set('issues', [...issues, issue]);
+    await this.store?.createIssue(issue);
     return issue;
   }
 
   async updateIssue(id: string, data: Partial<Issue>): Promise<Issue> {
-    const issues = await this.getIssues();
-    const updated = issues.map((i) => (i.id === id ? { ...i, ...data } : i));
-    await this.store?.set('issues', updated);
-    return updated.find((i) => i.id === id)!;
+    const updated = await this.store?.updateIssue(id, data);
+    if (!updated) throw new Error('Issue not found');
+    return updated;
   }
 
   async deleteIssue(id: string): Promise<void> {
-    const issues = await this.getIssues();
-    await this.store?.set('issues', issues.filter((i) => i.id !== id));
+    await this.store?.deleteIssue(id);
   }
 
   // ── Time Entries (database-backed) ──
@@ -197,44 +191,54 @@ export class IpcService {
     return res?.success ? (res.issues ?? []) : [];
   }
 
+  private async worklogConnection(id?: string | null) {
+    return id ? (await this.jiraGetConnections()).find(connection => connection.id === id) : this.jiraGetDefaultConnection();
+  }
+
   async jiraSyncWorklog(params: {
+    connectionId?: string | null;
     issueKey: string;
     timeSpentSeconds: number;
     started: string;
     comment?: string;
   }): Promise<IpcResponse> {
-    const defaultConn = await this.jiraGetDefaultConnection();
-    if (!defaultConn) return { success: false, error: 'No default Jira connection' };
+    const connection = await this.worklogConnection(params.connectionId);
+    if (!connection) return { success: false, error: 'Jira connection not found' };
     return (await this.jira?.addWorklog({
-      ...defaultConn,
+      ...connection,
       ...params,
+      connectionId: connection.id,
     })) ?? { success: false, error: 'Jira API not available' };
   }
 
   async jiraUpdateWorklog(params: {
+    connectionId?: string | null;
     issueKey: string;
     worklogId: string;
     timeSpentSeconds: number;
     started: string;
     comment?: string;
   }): Promise<IpcResponse> {
-    const defaultConn = await this.jiraGetDefaultConnection();
-    if (!defaultConn) return { success: false, error: 'No default Jira connection' };
+    const connection = await this.worklogConnection(params.connectionId);
+    if (!connection) return { success: false, error: 'Jira connection not found' };
     return (await this.jira?.updateWorklog({
-      ...defaultConn,
+      ...connection,
       ...params,
+      connectionId: connection.id,
     })) ?? { success: false, error: 'Jira API not available' };
   }
 
   async jiraDeleteWorklog(params: {
+    connectionId?: string | null;
     issueKey: string;
     worklogId: string;
   }): Promise<IpcResponse> {
-    const defaultConn = await this.jiraGetDefaultConnection();
-    if (!defaultConn) return { success: false, error: 'No default Jira connection' };
+    const connection = await this.worklogConnection(params.connectionId);
+    if (!connection) return { success: false, error: 'Jira connection not found' };
     return (await this.jira?.deleteWorklog({
-      ...defaultConn,
+      ...connection,
       ...params,
+      connectionId: connection.id,
     })) ?? { success: false, error: 'Jira API not available' };
   }
 

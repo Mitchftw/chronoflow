@@ -293,8 +293,8 @@ export class TimesheetsComponent {
 
   loading = signal(true);
   selectedDate = signal(toLocalDate());
-  entries = signal<TimeEntry[]>([]);
-  issues = signal<Issue[]>([]);
+  readonly entries = this.db.timeEntries;
+  readonly issues = this.db.issues;
 
   syncingAll = signal(false);
   syncingGroupId = signal<string | null>(null);
@@ -405,8 +405,6 @@ export class TimesheetsComponent {
         this.db.reloadIssues(),
         this.db.reloadProjects(),
       ]);
-      this.entries.set(this.db.timeEntries());
-      this.issues.set(this.db.issues());
     } catch (err) {
       console.error('Failed to load timesheet data', err);
     } finally {
@@ -461,7 +459,6 @@ export class TimesheetsComponent {
 
     try {
       await this.db.deleteTimeEntry(entry.id);
-      this.entries.update((list) => list.filter((e) => e.id !== entry.id));
       this.closeDeleteDialog();
     } catch (err) {
       console.error('Failed to delete entry', err);
@@ -561,7 +558,10 @@ export class TimesheetsComponent {
     conn: JiraConnection,
   ): Promise<string | null> {
     try {
-      const result = await this.jiraService.syncWorklog(entry, conn, undefined, issueKey);
+      const owner = this.db.getIssueById(entry.issueId)?.jiraConnectionId;
+      const connection = owner ? this.jiraService.connections().find(c => c.id === owner) : conn;
+      if (!connection) return 'The Jira connection for this task is unavailable.';
+      const result = await this.jiraService.syncWorklog(entry, connection, entry.note, issueKey);
       if (!result.success) {
         return result.error ?? 'Jira rejected the worklog.';
       }
@@ -571,18 +571,10 @@ export class TimesheetsComponent {
         return 'Jira did not return a worklog id.';
       }
 
-      const updated = await this.db.updateTimeEntry(entry.id, {
+      await this.db.updateTimeEntry(entry.id, {
         jiraWorklogId: worklogId,
         isDirty: false,
       });
-      const canonical: TimeEntry = updated ?? {
-        ...entry,
-        jiraWorklogId: worklogId,
-        isDirty: false,
-      };
-      this.entries.update((list) =>
-        list.map((e) => (e.id === canonical.id ? canonical : e)),
-      );
       return null;
     } catch (err) {
       return this.toErrorMessage(err, 'Could not sync this entry.');

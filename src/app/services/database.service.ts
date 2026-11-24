@@ -92,7 +92,7 @@ export class DatabaseService {
     this._issues.set(issues);
   }
 
-  async createIssue(data: { title: string; description?: string; projectId?: string; status?: string; jiraIssueKey?: string | null; estimate?: number; color?: string | null }): Promise<Issue> {
+  async createIssue(data: { title: string; description?: string; projectId?: string; status?: string; jiraIssueKey?: string | null; jiraConnectionId?: string | null; estimate?: number; color?: string | null }): Promise<Issue> {
     const issue = await this.ipc.createIssue(data);
     this._issues.update((list) => [...list, issue]);
     return issue;
@@ -182,6 +182,7 @@ export class DatabaseService {
       const deletedWorklogs = await this.ipc.timerGetDeletedWorklogs();
       for (const dw of deletedWorklogs) {
         const res: any = await this.ipc.jiraDeleteWorklog({
+          connectionId: dw.jiraConnectionId,
           issueKey: dw.issueKey,
           worklogId: dw.jiraWorklogId,
         });
@@ -201,6 +202,7 @@ export class DatabaseService {
             const durationSeconds = entryDurationSeconds(entry);
             if (durationSeconds > 0) {
               const res: any = await this.ipc.jiraUpdateWorklog({
+                connectionId: issue.jiraConnectionId,
                 issueKey: issue.jiraIssueKey,
                 worklogId: entry.jiraWorklogId,
                 timeSpentSeconds: durationSeconds,
@@ -233,6 +235,7 @@ export class DatabaseService {
             const durationSeconds = entryDurationSeconds(entry);
             if (durationSeconds > 0) {
               const res: any = await this.ipc.jiraSyncWorklog({
+                connectionId: issue.jiraConnectionId,
                 issueKey: issue.jiraIssueKey,
                 timeSpentSeconds: durationSeconds,
                 // See jiraUpdateWorklog note above — same Jira format
@@ -271,15 +274,19 @@ export class DatabaseService {
       const defaultConn = await this.ipc.jiraGetDefaultConnection();
       if (!defaultConn) throw new Error('No default Jira connection found');
 
+      const onConnection = (issue: Issue) => !issue.jiraConnectionId || issue.jiraConnectionId === defaultConn.id;
+      const localIssue = (key: string) => this._issues().find(i => i.jiraIssueKey === key && onConnection(i));
+
       // 1. Load issues from Jira
       const jiraIssues = await this.ipc.jiraLoadIssues();
       for (const ji of jiraIssues) {
-        let issue = this._issues().find((i) => i.jiraIssueKey === ji.key);
+        let issue = localIssue(ji.key);
         if (!issue) {
           await this.createIssue({
             title: ji.summary,
             description: ji.description || '',
             jiraIssueKey: ji.key,
+            jiraConnectionId: defaultConn.id,
             estimate: ji.estimateMinutes,
           });
           loadedIssues++;
@@ -305,7 +312,10 @@ export class DatabaseService {
       }
 
       const jiraWorklogs = worklogsResult.worklogs;
-      const localEntries = this.getTimeEntriesForDate(date);
+      const localEntries = this.getTimeEntriesForDate(date).filter(entry => {
+        const issue = this.getIssueById(entry.issueId);
+        return issue && onConnection(issue);
+      });
       const jiraWorklogIds = new Set(
         jiraWorklogs.map((log) => String(log.id)),
       );
@@ -333,11 +343,12 @@ export class DatabaseService {
         const localMatch = localEntries.find(
           (e) => e.jiraWorklogId && String(e.jiraWorklogId) === String(log.id),
         );
-        let issue = this._issues().find((i) => i.jiraIssueKey === log.issueKey);
+        let issue = localIssue(log.issueKey);
         if (!issue) {
           issue = await this.createIssue({
             title: log.issueSummary,
             jiraIssueKey: log.issueKey,
+            jiraConnectionId: defaultConn.id,
           });
         }
 

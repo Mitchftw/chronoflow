@@ -1,8 +1,10 @@
+import type { Project, Issue } from "../src/types";
 import { contextBridge, ipcRenderer } from "electron";
 
 declare const window: any;
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  mcp: { install: (agent: string) => ipcRenderer.invoke("mcp:install", agent) },
   app: {
     getVersion: () => ipcRenderer.invoke("app:get-version"),
     isDev: () => ipcRenderer.invoke("app:is-dev"),
@@ -15,6 +17,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 
   store: {
+    createProject: (project: Project) => ipcRenderer.invoke("store:create-project", project),
+    updateProject: (id: string, fields: Partial<Project>) => ipcRenderer.invoke("store:update-project", id, fields),
+    deleteProject: (id: string) => ipcRenderer.invoke("store:delete-project", id),
+    createIssue: (issue: Issue) => ipcRenderer.invoke("store:create-issue", issue),
+    updateIssue: (id: string, fields: Partial<Issue>) => ipcRenderer.invoke("store:update-issue", id, fields),
+    deleteIssue: (id: string) => ipcRenderer.invoke("store:delete-issue", id),
     get: (key: string) => ipcRenderer.invoke("store:get", key),
     set: (key: string, value: any) =>
       ipcRenderer.invoke("store:set", key, value),
@@ -190,4 +198,8 @@ ipcRenderer.on("app:update-available", (_, info) => {
 
 ipcRenderer.on("app:update-downloaded", (_, info) => {
   window.dispatchEvent(new CustomEvent("app:update-downloaded", { detail: info }));
+});
+
+ipcRenderer.on("mcp:data-changed", () => {
+  window.dispatchEvent(new Event("mcp:data-changed"));
 });

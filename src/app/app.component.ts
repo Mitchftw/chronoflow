@@ -241,6 +241,11 @@ export class AppComponent implements OnDestroy {
     });
   }
 
+  @HostListener('window:mcp:data-changed')
+  refreshAfterMcpEdit(): void {
+    void Promise.all([this.db.reloadProjects(), this.db.reloadIssues(), this.db.reloadTimeEntries()]);
+  }
+
   @HostListener('window:resize')
   onWindowResize(): void {
     const narrow = isNarrowViewport();
