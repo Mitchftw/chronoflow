@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -101,7 +101,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "## ChronoFlow v0.1.26\n\nThe Dashboard time-entry headers now line up with their fields at every table width, including ultrawide layouts. At intermediate widths, notes appear below the entry while the action buttons stay on the first line."
+      "releaseNotes": "## ChronoFlow v0.1.27\n\n- Media and Agents content now reveals as the notch opens and stays inside its rounded edge as it closes.\n- The notch defaults to 384 px wide. Agent usage cards have more room, and long session lists scroll within the notch."
     }
   }
 }

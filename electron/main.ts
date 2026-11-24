@@ -1,3 +1,4 @@
+import { NOTCH_WIDTH, NOTCH_BAR_HEIGHT } from "./utils/notch-dimensions";
 import { app, BrowserWindow, shell, ipcMain, screen } from "electron";
 import { startMcpService, stopMcpService, registerMcpHandlers } from "./services/mcp-service";
 import { registerMediaHandlers, stopMediaService } from "./services/media-service";
@@ -632,8 +633,8 @@ function createTimerWindow(mode: "draggable" | "notch") {
   const isNotch = mode === "notch";
 
   timerWindow = new BrowserWindow({
-    width: isNotch ? 324 : 328,
-    height: isNotch ? 38 : 100,
+    width: isNotch ? NOTCH_WIDTH : 328,
+    height: isNotch ? NOTCH_BAR_HEIGHT : 100,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -661,12 +662,12 @@ function createTimerWindow(mode: "draggable" | "notch") {
 
   if (isNotch) {
     const { width: screenWidth, x: displayX, y: displayY } = activeDisplay.bounds;
-    const initialHeight = isNotch ? 38 : 100;
+    const initialHeight = NOTCH_BAR_HEIGHT;
     const startY = autoHideEnabled
       ? computeCollapsedY(displayY, initialHeight)
       : displayY;
     timerWindow.setPosition(
-      displayX + Math.round((screenWidth - 324) / 2),
+      displayX + Math.round((screenWidth - NOTCH_WIDTH) / 2),
       startY,
     );
     isCollapsed = autoHideEnabled;

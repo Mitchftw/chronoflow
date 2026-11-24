@@ -13,7 +13,7 @@ import { AgentLogoComponent } from './agent-logo.component';
       <!-- Usage limits -->
       <div class="grid grid-cols-2 gap-2">
         @for (a of cards(); track a.kind) {
-          <div class="rounded-xl border border-white/10 bg-white/5 px-2.5 py-2">
+          <div class="min-w-0 rounded-xl border border-white/10 bg-white/5 px-2.5 py-2">
             <div class="mb-1.5 flex items-center gap-1.5">
               <app-agent-logo [agent]="a.kind" class="size-3.5" />
               <span class="text-[11px] font-bold text-zinc-100">{{ a.name }}</span>
@@ -30,9 +30,9 @@ import { AgentLogoComponent } from './agent-logo.component';
               <div class="flex flex-col gap-1.5">
                 @for (r of a.rings; track r.label) {
                   <div>
-                    <div class="flex items-baseline justify-between text-[9px] leading-none">
+                    <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-[10px] leading-none">
                       <span class="font-bold text-zinc-300">{{ r.label }}</span>
-                      <span class="tabular-nums text-zinc-500">
+                      <span class="whitespace-nowrap tabular-nums text-zinc-400">
                         <span class="font-bold" [class]="text(r.percent)">{{ round(r.percent) }}%</span>
                         · {{ r.resetsInMs === null ? 'reset' : duration(r.resetsInMs) }}
                       </span>
@@ -49,7 +49,7 @@ import { AgentLogoComponent } from './agent-logo.component';
               </div>
             } @else if (a.kind === 'claude') {
               @if (a.error) {
-                <p class="text-[9px] leading-snug text-amber-300">{{ a.error }}</p>
+                <p class="text-[10px] leading-snug wrap-break-word text-amber-300">{{ a.error }}</p>
               } @else {
                 <p class="text-[9px] leading-snug text-zinc-500">
                   Usage appears after the first Claude Code response. Desktop sessions use your local Claude login automatically.
@@ -59,7 +59,7 @@ import { AgentLogoComponent } from './agent-logo.component';
                 class="mt-1 rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-zinc-300 hover:bg-white/10 cursor-pointer"
                 (click)="copySetup()"
                 title="Optional terminal status line; Desktop and OAuth work without it"
-              >{{ copied() ? 'Copied' : 'Copy terminal status line setup' }}</button>
+              >{{ copied() ? 'Copied' : 'Copy terminal setup' }}</button>
             } @else {
               <p class="text-[9px] leading-snug text-zinc-500">{{ a.empty }}</p>
             }

@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, input, output, inject, signal, effect, untracked, DestroyRef, ElementRef, viewChild } from '@angular/core';
+import { Component, ChangeDetectionStrategy, ChangeDetectorRef, input, output, inject, signal, effect, DestroyRef, ElementRef, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { IpcService } from '../../services/ipc.service';
@@ -10,18 +10,20 @@ import { MediaPanelComponent } from '../../droplets/media-panel.component';
 import { AgentsService } from '../../droplets/agents.service';
 import { AgentsPanelComponent } from '../../droplets/agents-panel.component';
 
+import { NOTCH_WIDTH, NOTCH_BAR_HEIGHT } from '../../../../electron/utils/notch-dimensions';
+
 @Component({
   selector: 'app-notch-timer',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SearchBarComponent, FormsModule, NgTemplateOutlet, DecimalPipe, MediaPanelComponent, AgentsPanelComponent],
   host: {
-    class: 'block transition-[width,height] duration-300 ease-out',
+    class: 'block transition-[height] duration-300 ease-out motion-reduce:transition-none',
     '[style.width.px]': 'width()',
     '[style.height.px]': 'height()',
   },
   template: `
     <div
-      class="flex flex-col h-full w-full rounded-b-2xl border-x border-b border-white/15 bg-zinc-900/95 backdrop-blur-xl px-4 select-none relative group/notch shadow-2xl shadow-black/40"
+      class="flex flex-col h-full w-full overflow-hidden rounded-b-2xl border-x border-b border-white/15 bg-zinc-900/95 backdrop-blur-xl px-4 select-none relative group/notch shadow-2xl shadow-black/40"
       (mouseenter)="onMouseEnter()"
       (mouseleave)="onMouseLeave()"
     >
@@ -187,9 +189,9 @@ import { AgentsPanelComponent } from '../../droplets/agents-panel.component';
       </div>
 
       <!-- Droplet panels -->
-      @if (panel() && !isStopping() && !dropdownOpen()) {
-        <div class="mt-1 w-full border-t border-white/5 pt-3">
-          @switch (panel()) {
+      @if (renderedPanel() && !isStopping() && !dropdownOpen()) {
+        <div #panelBody class="mt-1 max-h-[300px] w-full shrink-0 overflow-y-auto overscroll-contain border-t border-white/5 pt-3 pb-3" [attr.inert]="panel() ? null : ''">
+          @switch (renderedPanel()) {
             @case ('media') { <app-media-panel /> }
             @case ('agents') { <app-agents-panel /> }
           }
@@ -231,6 +233,7 @@ import { AgentsPanelComponent } from '../../droplets/agents-panel.component';
 })
 export class NotchTimerComponent {
   private ipc = inject(IpcService);
+  private changeDetector = inject(ChangeDetectorRef);
   protected media = inject(MediaService);
   protected agents = inject(AgentsService);
   private settings = inject(SettingsService);
@@ -239,14 +242,29 @@ export class NotchTimerComponent {
   constructor() {
     // The main window installs/removes droplets; pick that up without needing a hover.
     const poll = setInterval(() => void this.settings.load(), 3000);
-    inject(DestroyRef).onDestroy(() => clearInterval(poll));
+    inject(DestroyRef).onDestroy(() => {
+      clearInterval(poll);
+      if (this.shrinkTimeout !== null) clearTimeout(this.shrinkTimeout);
+      document.removeEventListener('mousemove', this.onResizing);
+      document.removeEventListener('mouseup', this.onResizeEnd);
+    });
 
-    // The agents page grows/shrinks with the number of live sessions.
-    effect(() => {
-      this.agents.sessions().length;
-      if (untracked(() => this.panel()) === 'agents') untracked(() => this.syncWindow());
+    effect((onCleanup) => {
+      const body = this.panelBody()?.nativeElement;
+      if (!body) return;
+
+      const observer = new ResizeObserver(() => {
+        if (this.panel()) {
+          this.syncWindow();
+          this.changeDetector.markForCheck();
+        }
+      });
+      observer.observe(body);
+      onCleanup(() => observer.disconnect());
     });
   }
+
+  private panelBody = viewChild<ElementRef<HTMLElement>>('panelBody');
 
   private noteArea = viewChild<ElementRef<HTMLTextAreaElement>>('noteArea');
 
@@ -261,11 +279,12 @@ export class NotchTimerComponent {
   close = output<void>();
   resultSelected = output<SearchResult>();
 
-  width = signal(324);
-  height = signal(38);
+  width = signal(NOTCH_WIDTH);
+  height = signal(NOTCH_BAR_HEIGHT);
   isStopping = signal(false);
   /** Droplet page (media) expanded under the top row. */
   panel = signal<'media' | 'agents' | null>(null);
+  protected renderedPanel = signal<'media' | 'agents' | null>(null);
   dropdownOpen = signal(false);
   stopNote = '';
 
@@ -319,11 +338,11 @@ export class NotchTimerComponent {
     }
 
     // Constraints
-    newWidth = Math.max(200, Math.min(800, newWidth));
+    newWidth = Math.max(280, Math.min(800, newWidth));
     
     if (newWidth !== this.width()) {
       this.width.set(newWidth);
-      this.ipc.resizeTimerWindow(newWidth, this.height());
+      this.ipc.resizeTimerWindow(newWidth, this.windowHeight);
     }
   };
 
@@ -334,25 +353,20 @@ export class NotchTimerComponent {
     this.ipc.setIgnoreMouse(true);
   };
 
-  private static readonly BASE_HEIGHT = 38;
-  private static readonly PANEL_HEIGHT = 150;
   private static readonly DROPDOWN_HEIGHT = 350;
   private static readonly STOP_HEIGHT = 200;
 
   // Last height requested from the main process. Growing happens immediately;
   // shrinking waits for the CSS transition so the window doesn't clip it.
-  private windowHeight = NotchTimerComponent.BASE_HEIGHT;
+  private windowHeight = NOTCH_BAR_HEIGHT;
 
   private targetHeight(): number {
     if (this.isStopping()) return NotchTimerComponent.STOP_HEIGHT;
     if (this.dropdownOpen()) return NotchTimerComponent.DROPDOWN_HEIGHT;
-    if (this.panel() === 'agents') {
-      // top row + limit cards (~80) + one row per live session (~34) + bottom breathing room
-      const rows = this.agents.sessions().length;
-      return 176 + (rows ? rows * 34 : 14);
-    }
-    if (this.panel()) return NotchTimerComponent.PANEL_HEIGHT;
-    return NotchTimerComponent.BASE_HEIGHT;
+    const body = this.panel() ? this.panelBody()?.nativeElement : undefined;
+    // The panel starts below the bar with a 4px gap and a 1px outer border.
+    if (body) return NOTCH_BAR_HEIGHT + 5 + body.offsetHeight;
+    return NOTCH_BAR_HEIGHT;
   }
 
   /**
@@ -360,45 +374,51 @@ export class NotchTimerComponent {
    * droplet panel) with the notch height and the auto-hide pin.
    */
   private syncWindow(): void {
+    this.ipc.setTimerWindowPinned(this.isStopping() || this.dropdownOpen() || this.panel() !== null);
+    if (this.panel() && !this.panelBody() && !this.isStopping() && !this.dropdownOpen()) return;
+
     const target = this.targetHeight();
+    if (target === this.height() && this.shrinkTimeout !== null) return;
     this.height.set(target);
 
-    // Cancel any pending shrink from a previous state change, otherwise a
-    // stale timeout could resize the window after the user re-opened something.
     if (this.shrinkTimeout !== null) {
       clearTimeout(this.shrinkTimeout);
       this.shrinkTimeout = null;
     }
 
-    // Pin open while anything interactive is showing so auto-hide never tucks
-    // the notch away mid-interaction. Released immediately when all closed so
-    // the parent's stop/hide handlers see the final pin state.
-    this.ipc.setTimerWindowPinned(this.isStopping() || this.dropdownOpen() || this.panel() !== null);
-
     if (target >= this.windowHeight) {
-      this.windowHeight = target;
-      this.ipc.resizeTimerWindow(this.width(), target);
+      if (!this.panel()) this.renderedPanel.set(null);
+      if (target !== this.windowHeight) {
+        this.windowHeight = target;
+        this.ipc.resizeTimerWindow(this.width(), target);
+      }
     } else {
+      // Keep the native window and the clipped panel around while the shell shrinks.
       this.shrinkTimeout = setTimeout(() => {
         this.shrinkTimeout = null;
-        const latest = this.targetHeight();
-        this.windowHeight = latest;
-        this.ipc.resizeTimerWindow(this.width(), latest);
-      }, 300);
+        if (!this.panel()) this.renderedPanel.set(null);
+        this.windowHeight = target;
+        this.ipc.resizeTimerWindow(this.width(), target);
+      }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300);
     }
   }
 
   private shrinkTimeout: ReturnType<typeof setTimeout> | null = null;
 
   togglePanel(which: 'media' | 'agents') {
-    this.panel.update((cur) => (cur === which ? null : which));
+    const next = this.panel() === which ? null : which;
+    this.panel.set(next);
+    if (next) this.renderedPanel.set(next);
     this.syncWindow();
   }
 
   onDropdownVisible(visible: boolean) {
     this.dropdownOpen.set(visible);
     // The search dropdown and the droplet panel share the space under the row.
-    if (visible) this.panel.set(null);
+    if (visible) {
+      this.panel.set(null);
+      this.renderedPanel.set(null);
+    }
     this.syncWindow();
   }
 
