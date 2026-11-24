@@ -41,7 +41,7 @@ interface VacationDay {
   selector: 'app-vacation',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SearchBarComponent, RouterLink, PageHeaderComponent],
-  host: { class: 'block max-w-4xl' },
+  host: { class: 'block' },
   template: `
     <app-page-header title="Vacation" subtitle="Bulk-log weekdays onto your Jira verlof ticket" />
 

@@ -1,7 +1,7 @@
 {
   "name": "chronoflow",
   "productName": "ChronoFlow",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "description": "Todo app and time tracker with Jira integration",
   "main": "dist/electron/main.js",
   "scripts": {
@@ -101,7 +101,7 @@
       "releaseType": "draft"
     },
     "releaseInfo": {
-      "releaseNotes": "## ChronoFlow v0.1.24\n\nChronoFlow now exposes 26 MCP tools for managing local projects, tasks and tracked time. Open **Settings → Agent MCP**, select your agent, and click **Install MCP**. Restart the agent and keep ChronoFlow running.\n\n- Move time to another task or day while preserving its duration. Split at a specific second, remove a break, reassign a block, or merge entries across midnight.\n- Start, pause, resume and correct timers from your agent. Splitting a running entry keeps the timer on the remaining open segment.\n- Search Jira and import a ticket as a local task before assigning time to it. Linked entries retain the information needed for the next Jira sync.\n- Agent edits appear in the desktop app. Concurrent timer starts are serialized, and failed multi-step edits roll back together.\n\nThe installer supports Codex, Claude Code, Antigravity and OpenCode."
+      "releaseNotes": "## ChronoFlow v0.1.25\n\nAll seven main screens now use the full width beside the sidebar, including on ultrawide monitors. The dashboard timeline and time entries expand with the window. Settings uses two proportional columns on wide screens, and Vacation has more room for planning and reviewing days."
     }
   }
 }

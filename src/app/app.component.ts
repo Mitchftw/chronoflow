@@ -52,7 +52,7 @@ import { pad2, toLocalDate } from './utils/time';
         />
 
         <main class="flex-1 overflow-y-auto select-text">
-          <div class="mx-auto w-full max-w-[1560px] px-6 pt-8 pb-12">
+          <div class="w-full px-6 pt-8 pb-12">
             <router-outlet />
           </div>
         </main>

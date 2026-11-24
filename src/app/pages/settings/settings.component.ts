@@ -47,7 +47,7 @@ import type { JiraConnection, DisplayInfo } from "../../../types";
       </div>
     }
 
-    <div class="grid max-w-[72rem] grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,21rem)]">
+    <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <div class="flex min-w-0 flex-col gap-6">
       <section
         class="rounded-2xl border border-border/40 bg-card/65 p-6 shadow-md transition-all duration-300"
